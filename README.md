@@ -22,8 +22,13 @@ There is no `apps/` directory. This is a library monorepo.
 | `npm run build`            | Bundle each package with tsdown (ESM + `.d.ts`, attw, publint) |
 | `npm run check-types`      | `tsc --noEmit` per package                                     |
 | `npm run test`             | Vitest per package                                             |
+| `npm run test:watch`       | Vitest per package in watch mode                               |
+| `npm run dev`              | Run each package's `dev` script                                |
 | `npm run lint`             | Oxlint (type-aware)                                            |
+| `npm run lint:fix`         | Oxlint with autofix                                            |
 | `npm run format`           | Oxfmt check                                                    |
+| `npm run format:fix`       | Oxfmt write                                                    |
+| `npm run quality`          | Lint and format (cached via turbo)                             |
 | `npm run qa`               | Lint, typecheck, and test in parallel                          |
 | `npm run ci`               | Build, typecheck, test, lint, and format                       |
 | `npm run changeset`        | Add a changeset for a version bump                             |

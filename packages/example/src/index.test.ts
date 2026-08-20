@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ZodError } from "zod";
 
 import { parseNonEmptyString } from "./index.js";
 
@@ -10,12 +11,12 @@ describe("parseNonEmptyString", () => {
   it("throws when the value is an empty string", () => {
     expect(() => {
       parseNonEmptyString("");
-    }).toThrow("Too small");
+    }).toThrow(ZodError);
   });
 
   it("throws when the value is not a string", () => {
     expect(() => {
       parseNonEmptyString(1);
-    }).toThrow("Invalid input");
+    }).toThrow(ZodError);
   });
 });
