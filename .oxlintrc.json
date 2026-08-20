@@ -42,7 +42,7 @@
     "max-lines-per-function": "off",
     "max-statements": "off",
     "max-params": ["error", 4],
-    "unicorn/filename-case": "error",
+    "unicorn/filename-case": ["error", { "case": "kebabCase" }],
     "vitest/require-test-timeout": "off",
     "jsdoc/require-param": "error",
     "jsdoc/require-param-name": "error",
