@@ -24,7 +24,8 @@ There is no `apps/` directory. This is a library monorepo.
 | `npm run test`             | Vitest per package                                             |
 | `npm run lint`             | Oxlint (type-aware)                                            |
 | `npm run format`           | Oxfmt check                                                    |
-| `npm run ci`               | build, typecheck, test, lint, format                           |
+| `npm run qa`               | Lint, typecheck, and test in parallel                          |
+| `npm run ci`               | Build, typecheck, test, lint, and format                       |
 | `npm run changeset`        | Add a changeset for a version bump                             |
 | `npm run version-packages` | Apply changesets locally (does not publish)                    |
 

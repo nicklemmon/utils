@@ -5,7 +5,9 @@ This is a library monorepo.
 - Public packages use the `@nicklemmon/*` name.
 - Private tooling packages use the `@repo/*` name.
 
-Copy `packages/example` when you add a package. Run `npm run ci` before you finish.
+Copy `packages/example` when you add a package.
+
+Run `npm run qa` before you push.
 
 ## Prose
 
