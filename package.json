@@ -1,21 +1,50 @@
 {
-  "name": "utils",
-  "version": "1.0.0",
-  "description": "Re-usable utilities",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "name": "@nicklemmon/utils",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reusable TypeScript utilities",
+  "homepage": "https://github.com/nicklemmon/utils#readme",
+  "bugs": {
+    "url": "https://github.com/nicklemmon/utils/issues"
   },
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nicklemmon/utils.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/nicklemmon/utils/issues"
+  "workspaces": [
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "turbo run build",
+    "check-types": "turbo run check-types",
+    "test": "turbo run test",
+    "test:watch": "turbo run test:watch",
+    "dev": "turbo run dev",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt .",
+    "quality": "turbo run lint format",
+    "ci": "turbo run build check-types test && npm run lint && npm run format",
+    "changeset": "changeset",
+    "version-packages": "changeset version"
   },
-  "homepage": "https://github.com/nicklemmon/utils#readme"
+  "devDependencies": {
+    "@arethetypeswrong/core": "^0.18.5",
+    "@changesets/cli": "^3.0.1",
+    "oxfmt": "^0.64.0",
+    "oxlint": "^1.79.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "publint": "^0.3.24",
+    "tsdown": "^0.22.14",
+    "turbo": "^2.10.11",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  },
+  "engines": {
+    "node": "^22.18.0 || ^24.11.0 || >=26.0.0"
+  },
+  "packageManager": "npm@11.19.0"
 }

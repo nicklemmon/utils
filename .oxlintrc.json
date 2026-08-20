@@ -1,0 +1,65 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["unicorn", "typescript", "oxc", "import", "vitest", "promise", "node"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "error",
+    "perf": "error",
+    "restriction": "error",
+    "style": "off",
+    "nursery": "off"
+  },
+  "options": {
+    "typeAware": true
+  },
+  "ignorePatterns": ["**/dist/**", "**/coverage/**", "**/.turbo/**", "**/node_modules/**"],
+  "rules": {
+    "import/no-commonjs": "error",
+    "import/extensions": ["error", "always", { "ignorePackages": true }],
+    "import/no-default-export": "error",
+    "import/prefer-default-export": "off",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/await-thenable": "error",
+    "typescript/consistent-type-imports": [
+      "error",
+      { "prefer": "type-imports", "fixStyle": "separate-type-imports" }
+    ],
+    "typescript/explicit-module-boundary-types": "error",
+    "no-magic-numbers": "off",
+    "id-length": "off",
+    "no-undefined": "off",
+    "no-void": "off",
+    "no-ternary": "off",
+    "no-plusplus": "off",
+    "max-lines": "off",
+    "max-lines-per-function": "off",
+    "max-statements": "off",
+    "max-params": ["error", 4],
+    "unicorn/filename-case": "error",
+    "vitest/require-test-timeout": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/vitest.config.ts", "**/tsdown.config.ts"],
+      "rules": {
+        "import/no-default-export": "off",
+        "import/extensions": "off"
+      }
+    },
+    {
+      "files": ["**/*.{test,spec}.ts"],
+      "rules": {
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/explicit-module-boundary-types": "off"
+      }
+    }
+  ]
+}
