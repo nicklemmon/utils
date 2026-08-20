@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["unicorn", "typescript", "oxc", "import", "vitest", "promise", "node"],
+  "plugins": ["unicorn", "typescript", "oxc", "import", "vitest", "promise", "node", "jsdoc"],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -43,7 +43,21 @@
     "max-statements": "off",
     "max-params": ["error", 4],
     "unicorn/filename-case": "error",
-    "vitest/require-test-timeout": "off"
+    "vitest/require-test-timeout": "off",
+    "jsdoc/require-param": "error",
+    "jsdoc/require-param-name": "error",
+    "jsdoc/require-param-description": "error",
+    "jsdoc/require-returns": "error",
+    "jsdoc/require-returns-description": "error",
+    "jsdoc/require-throws-description": "error",
+    "jsdoc/check-tag-names": "error",
+    "jsdoc/empty-tags": "error",
+    "jsdoc/no-blank-blocks": "error",
+    "jsdoc/require-param-type": "off",
+    "jsdoc/require-returns-type": "off",
+    "jsdoc/require-property-type": "off",
+    "jsdoc/require-throws-type": "off",
+    "jsdoc/require-yields-type": "off"
   },
   "overrides": [
     {
@@ -58,7 +72,9 @@
       "rules": {
         "typescript/no-unsafe-assignment": "off",
         "typescript/no-unsafe-call": "off",
-        "typescript/explicit-module-boundary-types": "off"
+        "typescript/explicit-module-boundary-types": "off",
+        "jsdoc/require-param": "off",
+        "jsdoc/require-returns": "off"
       }
     }
   ]

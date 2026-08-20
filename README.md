@@ -38,7 +38,7 @@ Run `turbo run lint` / `turbo run format` when you want those root tasks cached.
 4. Implement `build`, `check-types`, `test`, and `dev` scripts to match `@nicklemmon/example`.
 5. Put runtime libraries such as `zod` in `dependencies` so tsdown externalizes them.
 
-Packages are ESM-only. Do not add a `require` export condition or emit CommonJS.
+Packages are ESM-only. Coding conventions (JSDoc, `type` vs `interface`, no `as`) are in [AGENTS.md](./AGENTS.md).
 
 ## Versioning
 
