@@ -6,8 +6,6 @@ Run `npm run qa` before you push.
 
 ## Lint
 
-Root `.oxlintrc.json` extends `@repo/anti-slop` (`packages/anti-slop/oxlintrc.json`). Root `oxlint .` applies those rules to every workspace package. A package with its own Oxlint config can extend `../anti-slop/oxlintrc.json`. Format, typecheck, and test `@repo/anti-slop` like other packages. The plugin package turns off restriction rules that fight ESTree node types.
-
 - Parse untrusted input with Zod at the I/O boundary. Do not use `typeof` to narrow unparsed values.
 - Parse functions at an I/O boundary may take `unknown`. Disable `anti-slop/no-unknown-parameters` on that function and give a one-line reason. Do not take `unknown` on other functions.
 - Do not add `SAFETY:` comments to justify `as` assertions. Do not use `as`.
