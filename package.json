@@ -27,8 +27,7 @@
     "format": "oxfmt --check .",
     "format:fix": "oxfmt .",
     "quality": "turbo run lint format",
-    "qa": "turbo run lint check-types test --continue",
-    "ci": "turbo run build check-types test lint format --continue",
+    "qa": "turbo run build check-types test lint format --continue",
     "changeset": "changeset",
     "version-packages": "changeset version"
   },

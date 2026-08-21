@@ -1,4 +1,4 @@
-name: CI
+name: QA
 
 on:
   pull_request:
@@ -35,4 +35,4 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
             turbo-${{ runner.os }}-
-      - run: npm run ci
+      - run: npm run qa
