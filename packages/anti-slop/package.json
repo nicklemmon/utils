@@ -1,0 +1,15 @@
+{
+  "name": "@repo/anti-slop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Vendored Oxlint anti-slop plugin and shared rule config",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./oxlintrc.json": "./oxlintrc.json"
+  },
+  "dependencies": {
+    "@oxlint/plugins": "^1.79.0"
+  }
+}

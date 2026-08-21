@@ -10,6 +10,7 @@ Reusable TypeScript utilities published as ESM-only packages.
 ## Layout
 
 - `packages/typescript-config` — private shared TypeScript config (`@repo/typescript-config`)
+- `packages/anti-slop` — private Oxlint anti-slop plugin (`@repo/anti-slop`)
 - `packages/example` — seed package that proves the toolchain (`@nicklemmon/example`)
 - Public packages use the `@nicklemmon/*` scope and live in `packages/<name>`
 

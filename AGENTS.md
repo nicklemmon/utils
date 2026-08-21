@@ -1,12 +1,12 @@
 # Agent notes
 
-Copy `packages/example` when you add a package.
+Copy `packages/example` when you add a public package. Private `@repo/*` toolchain packages do not copy `example`.
 
 Run `npm run qa` before you push.
 
 ## Lint
 
-Root `.oxlintrc.json` enables vendored anti-slop rules from `tools/oxlint/anti-slop`.
+Root `.oxlintrc.json` extends `@repo/anti-slop` (`packages/anti-slop/oxlintrc.json`). Root `oxlint .` applies those rules to every workspace package. A package with its own Oxlint config can extend `../anti-slop/oxlintrc.json`.
 
 - Parse untrusted input with Zod at the I/O boundary. Do not use `typeof` to narrow unparsed values.
 - Parse functions at an I/O boundary may take `unknown`. Disable `anti-slop/no-unknown-parameters` on that function and give a one-line reason. Do not take `unknown` on other functions.

@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/core": "*",
+    "@repo/anti-slop": "*",
     "@repo/typescript-config": "*",
     "publint": "*",
     "tsdown": "*",
