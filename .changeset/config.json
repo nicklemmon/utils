@@ -7,5 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@repo/typescript-config"]
+  "ignore": ["@repo/anti-slop", "@repo/typescript-config"]
 }

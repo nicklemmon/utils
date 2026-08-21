@@ -5,3 +5,8 @@ coverage/
 *.tsbuildinfo
 *.tgz
 .DS_Store
+.env
+.env.*
+*.pem
+*.key
+.claude/
