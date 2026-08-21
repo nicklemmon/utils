@@ -20,7 +20,14 @@ function isGlobalReflect(sourceCode: SourceCode, expression: ESTree.Expression):
   return variable === null || variable.defs.length === 0;
 }
 
-/** Reports whether a call target names one method on the global Reflect object. */
+/**
+ * Report whether a call target names one method on the global Reflect object.
+ *
+ * @param sourceCode - Source of the file being linted.
+ * @param callee - Call expression callee to inspect.
+ * @param methodName - Expected Reflect method name.
+ * @returns `true` when `callee` is `Reflect.<methodName>` on the global object.
+ */
 export function isGlobalReflectMethodCall(
   sourceCode: SourceCode,
   callee: ESTree.Expression,

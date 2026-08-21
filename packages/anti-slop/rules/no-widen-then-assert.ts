@@ -1,5 +1,6 @@
-import { defineRule } from "@oxlint/plugins";
 import type { ESTree, Variable } from "@oxlint/plugins";
+
+import { defineRule } from "@oxlint/plugins";
 
 type BroadTypeKind = "top" | "object" | "record";
 
@@ -121,23 +122,23 @@ function typesHaveSameSyntax(
 
 function isDefinitelyObjectType(type: ESTree.TSType): boolean {
   const unwrapped = unwrapTypeParentheses(type);
-  switch (unwrapped.type) {
-    case "TSArrayType":
-    case "TSConstructorType":
-    case "TSFunctionType":
-    case "TSMappedType":
-    case "TSObjectKeyword":
-    case "TSTupleType":
-      return true;
-    case "TSTypeLiteral":
-      return unwrapped.members.length > 0;
-    case "TSIntersectionType":
-      return unwrapped.types.every(isDefinitelyObjectType);
-    case "TSTypeOperator":
-      return unwrapped.operator === "readonly" && isDefinitelyObjectType(unwrapped.typeAnnotation);
-    default:
-      return false;
+  if (
+    unwrapped.type === "TSArrayType" ||
+    unwrapped.type === "TSConstructorType" ||
+    unwrapped.type === "TSFunctionType" ||
+    unwrapped.type === "TSMappedType" ||
+    unwrapped.type === "TSObjectKeyword" ||
+    unwrapped.type === "TSTupleType"
+  ) {
+    return true;
   }
+  if (unwrapped.type === "TSTypeLiteral") return unwrapped.members.length > 0;
+  if (unwrapped.type === "TSIntersectionType") return unwrapped.types.every(isDefinitelyObjectType);
+  return (
+    unwrapped.type === "TSTypeOperator" &&
+    unwrapped.operator === "readonly" &&
+    isDefinitelyObjectType(unwrapped.typeAnnotation)
+  );
 }
 
 function isDefinitelyNarrowerRecordType(type: ESTree.TSType): boolean {
@@ -311,7 +312,10 @@ function assertionIsNarrower(
   return isDefinitelyNarrowerRecordType(assertedType);
 }
 
-/** Detect immutable local bindings that erase a known type and are later asserted back to a narrower type. */
+/**
+ * Detect immutable local bindings that erase a known type and are later asserted back to a narrower
+ * type.
+ */
 export const noWidenThenAssertRule = defineRule({
   meta: {
     type: "problem",

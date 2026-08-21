@@ -9,7 +9,18 @@
     ".": "./index.ts",
     "./oxlintrc.json": "./oxlintrc.json"
   },
+  "scripts": {
+    "check-types": "tsc --noEmit --project tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "dependencies": {
     "@oxlint/plugins": "^1.79.0"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "*",
+    "oxlint": "*",
+    "typescript": "*",
+    "vitest": "*"
   }
 }

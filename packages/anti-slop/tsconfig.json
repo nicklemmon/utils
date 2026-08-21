@@ -1,0 +1,10 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "isolatedDeclarations": false,
+    "allowImportingTsExtensions": true,
+    "rootDir": ".",
+    "noEmit": true
+  },
+  "include": ["**/*.ts"]
+}
