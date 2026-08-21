@@ -10,6 +10,7 @@ Reusable TypeScript utilities published as ESM-only packages.
 ## Layout
 
 - `packages/typescript-config` — private shared TypeScript config (`@repo/typescript-config`)
+- `packages/anti-slop` — private Oxlint anti-slop plugin (`@repo/anti-slop`)
 - `packages/example` — seed package that proves the toolchain (`@nicklemmon/example`)
 - Public packages use the `@nicklemmon/*` scope and live in `packages/<name>`
 
@@ -29,8 +30,7 @@ There is no `apps/` directory. This is a library monorepo.
 | `npm run format`           | Oxfmt check                                                    |
 | `npm run format:fix`       | Oxfmt write                                                    |
 | `npm run quality`          | Lint and format (cached via turbo)                             |
-| `npm run qa`               | Lint, typecheck, and test in parallel                          |
-| `npm run ci`               | Build, typecheck, test, lint, and format                       |
+| `npm run qa`               | Build, typecheck, test, lint, and format                       |
 | `npm run changeset`        | Add a changeset for a version bump                             |
 | `npm run version-packages` | Apply changesets locally (does not publish)                    |
 

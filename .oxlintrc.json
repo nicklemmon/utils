@@ -1,5 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": ["./packages/anti-slop/oxlintrc.json"],
   "plugins": ["unicorn", "typescript", "oxc", "import", "vitest", "promise", "node", "jsdoc"],
   "categories": {
     "correctness": "error",
@@ -75,6 +76,29 @@
         "typescript/explicit-module-boundary-types": "off",
         "jsdoc/require-param": "off",
         "jsdoc/require-returns": "off"
+      }
+    },
+    {
+      "files": ["packages/anti-slop/**/*.ts"],
+      "rules": {
+        "complexity": "off",
+        "import/no-relative-parent-imports": "off",
+        "oxc/no-optional-chaining": "off",
+        "typescript/explicit-function-return-type": "off",
+        "typescript/prefer-readonly-parameter-types": "off",
+        "unicorn/no-immediate-mutation": "off",
+        "no-use-before-define": [
+          "error",
+          { "functions": false, "classes": true, "variables": true }
+        ],
+        "anti-slop/no-runtime-typeof": ["error", { "allowInTypeGuards": true }]
+      }
+    },
+    {
+      "files": ["packages/anti-slop/index.ts"],
+      "rules": {
+        "import/max-dependencies": "off",
+        "import/no-default-export": "off"
       }
     }
   ]

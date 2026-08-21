@@ -27,14 +27,14 @@
     "format": "oxfmt --check .",
     "format:fix": "oxfmt .",
     "quality": "turbo run lint format",
-    "qa": "turbo run lint check-types test --continue",
-    "ci": "turbo run build check-types test lint format --continue",
+    "qa": "turbo run build check-types test lint format --continue",
     "changeset": "changeset",
     "version-packages": "changeset version"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "^0.18.5",
     "@changesets/cli": "^3.0.1",
+    "@repo/anti-slop": "*",
     "oxfmt": "^0.64.0",
     "oxlint": "^1.79.0",
     "oxlint-tsgolint": "^7.0.2001",

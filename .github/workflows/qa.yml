@@ -1,4 +1,4 @@
-name: CI
+name: QA
 
 on:
   pull_request:
@@ -9,12 +9,14 @@ on:
 permissions: {}
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: qa-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  ci:
+  qa:
     runs-on: ubuntu-latest
+    env:
+      TURBO_TELEMETRY_DISABLED: "1"
     permissions:
       contents: read
     steps:
@@ -33,4 +35,4 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
             turbo-${{ runner.os }}-
-      - run: npm run ci
+      - run: npm run qa
