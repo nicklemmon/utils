@@ -4,6 +4,16 @@ Copy `packages/example` when you add a package.
 
 Run `npm run qa` before you push.
 
+## Lint
+
+Root `.oxlintrc.json` enables vendored anti-slop rules from `tools/oxlint/anti-slop`.
+
+- Parse untrusted input with Zod at the I/O boundary. Do not use `typeof` to narrow unparsed values.
+- Parse functions at an I/O boundary may take `unknown`. Disable `anti-slop/no-unknown-parameters` on that function and give a one-line reason. Do not take `unknown` on other functions.
+- Do not add `SAFETY:` comments to justify `as` assertions. Do not use `as`.
+- Do not mock modules with `vi.mock` or `jest.mock`.
+- Do not use `Record<string, unknown>` or similar dictionary types as a public contract.
+
 ## Prose
 
 Write all prose in simplified technical English.
