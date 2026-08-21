@@ -27,7 +27,8 @@
     "format": "oxfmt --check .",
     "format:fix": "oxfmt .",
     "quality": "turbo run lint format",
-    "qa": "turbo run build check-types test lint format --continue",
+    "qa": "turbo run build check-types test lint format --continue && npm run audit",
+    "audit": "npm audit --audit-level=high",
     "changeset": "changeset",
     "version-packages": "changeset version"
   },

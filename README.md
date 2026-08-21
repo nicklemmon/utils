@@ -30,7 +30,8 @@ There is no `apps/` directory. This is a library monorepo.
 | `npm run format`           | Oxfmt check                                                    |
 | `npm run format:fix`       | Oxfmt write                                                    |
 | `npm run quality`          | Lint and format (cached via turbo)                             |
-| `npm run qa`               | Build, typecheck, test, lint, and format                       |
+| `npm run qa`               | Build, typecheck, test, lint, format, and `npm audit`          |
+| `npm run audit`            | Fail on high or critical `npm audit` findings                  |
 | `npm run changeset`        | Add a changeset for a version bump                             |
 | `npm run version-packages` | Apply changesets locally (does not publish)                    |
 
