@@ -2,19 +2,9 @@
 
 Reusable TypeScript utilities published as ESM-only packages.
 
-## Requirements
-
-- Node.js `^22.18.0 || ^24.11.0 || >=26.0.0`
-- npm 11 (see `packageManager` in the root `package.json`)
-
 ## Layout
 
-- `packages/typescript-config` — private shared TypeScript config (`@repo/typescript-config`)
-- `packages/anti-slop` — private Oxlint anti-slop plugin (`@repo/anti-slop`)
-- `packages/example` — seed package that proves the toolchain (`@nicklemmon/example`)
-- Public packages use the `@nicklemmon/*` scope and live in `packages/<name>`
-
-There is no `apps/` directory. This is a library monorepo.
+Public packages use the `@nicklemmon/*` scope and live in `packages/<name>`
 
 ## Scripts
 
