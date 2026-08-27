@@ -1,0 +1,52 @@
+{
+  "name": "@nicklemmon/gh-gl",
+  "version": "0.0.0",
+  "description": "Sync a GitHub repo's default branch into a downstream GitLab repo",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nicklemmon/utils.git",
+    "directory": "packages/gh-gl"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "bin": {
+    "gh-gl": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "check-types": "tsc --noEmit --project tsconfig.json",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "commander": "^14.0.0",
+    "execa": "^9.5.2",
+    "varlock": "^1.17.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/core": "*",
+    "@repo/anti-slop": "*",
+    "@repo/typescript-config": "*",
+    "@types/node": "^26.0.0",
+    "publint": "*",
+    "tsdown": "*",
+    "typescript": "*",
+    "vitest": "*"
+  }
+}

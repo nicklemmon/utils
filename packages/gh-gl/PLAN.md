@@ -198,8 +198,10 @@ that directory got onto disk — a git checkout, an extracted archive, anything.
 
 1. Fetch the GitLab default branch's current tip and the target branch's current
    tip.
-2. In a scratch clone, attempt `git merge <default-branch>` into the target
-   branch.
+2. In a scratch clone, attempt `git merge --no-ff <default-branch>` into the
+   target branch. `--no-ff` always creates a real merge commit, even when a
+   fast-forward would be possible — a clear, consistent boundary showing when a
+   sync happened, and required by git itself once history has diverged at all.
 3. **Clean merge:** push the result. (Skip the push under `--dry-run`; report that
    it would have merged cleanly.)
 4. **Conflict:** abort the merge (`git merge --abort`), push nothing, print the
