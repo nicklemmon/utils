@@ -63,6 +63,24 @@ function resolveVarlockBin(): string {
   return path.join(packageDir, bin.varlock);
 }
 
+const ErrorWithMessageSchema = z.object({ message: z.string() });
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- I/O boundary parser for a caught exception of unknown shape.
+function errorMessage(error: unknown): string {
+  const parsed = ErrorWithMessageSchema.safeParse(error);
+
+  return parsed.success ? parsed.data.message : "Unknown error";
+}
+
+let varlockBin: string;
+
+try {
+  varlockBin = resolveVarlockBin();
+} catch (error) {
+  console.error(`gh-gl: could not start varlock: ${errorMessage(error)}`);
+  process.exit(2);
+}
+
 const distDir = import.meta.dirname;
 const packageDir = path.dirname(distDir);
 const cliImplPath = path.join(distDir, "cli-impl.js");
@@ -70,7 +88,7 @@ const cliImplPath = path.join(distDir, "cli-impl.js");
 const result = await execa(
   process.execPath,
   [
-    resolveVarlockBin(),
+    varlockBin,
     "run",
     "--path",
     packageDir,

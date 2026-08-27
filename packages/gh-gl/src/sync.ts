@@ -74,7 +74,13 @@ async function attemptRebuild(
     }
 
     if (options.dryRun) {
-      return { kind: "rebuilt", branch, githubSha, overlayFingerprint };
+      return {
+        kind: "rebuilt",
+        branch,
+        githubSha,
+        overlayFingerprint,
+        dryRun: true,
+      };
     }
 
     await setSymbolicHead(scratchDir, `refs/heads/${branch}`);
@@ -96,7 +102,13 @@ async function attemptRebuild(
       return { kind: "push-rejected" };
     }
 
-    return { kind: "rebuilt", branch, githubSha, overlayFingerprint };
+    return {
+      kind: "rebuilt",
+      branch,
+      githubSha,
+      overlayFingerprint,
+      dryRun: false,
+    };
   } finally {
     rmSync(scratchDir, { recursive: true, force: true });
   }
@@ -158,11 +170,24 @@ async function runMerge(
     return { kind: "conflict", branch, conflictingFiles: result.conflictingFiles };
   }
 
-  if (!options.dryRun) {
-    await pushBranch(scratchDir, options.gitlabUrl, branch, options.gitlabToken);
+  if (options.dryRun) {
+    return { kind: "merged", branch, dryRun: true };
   }
 
-  return { kind: "merged", branch };
+  const pushed = await pushBranch(
+    scratchDir,
+    options.gitlabUrl,
+    branch,
+    options.gitlabToken,
+  );
+
+  if (!pushed) {
+    throw new Error(
+      `Push to ${branch} was rejected — the remote moved during this run (e.g. someone else pushed to it). Fetch and merge locally to resolve, then re-run.`,
+    );
+  }
+
+  return { kind: "merged", branch, dryRun: false };
 }
 
 /**

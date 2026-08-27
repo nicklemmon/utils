@@ -143,5 +143,14 @@ try {
     process.exit(error.exitCode);
   }
 
+  // `commander.help`: no subcommand was given, so commander printed usage
+  // itself. That's a real usage error per gh-gl's own exit-code contract
+  // (tier 2), not commander's own default of 1 (reserved here for merge
+  // conflicts specifically) — the help text is already on stdout/stderr, so
+  // there's nothing more to print.
+  if (error instanceof CommanderError && error.code === "commander.help") {
+    process.exit(2);
+  }
+
   fail(errorMessage(error), false);
 }

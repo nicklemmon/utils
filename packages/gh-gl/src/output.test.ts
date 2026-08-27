@@ -21,12 +21,15 @@ describe("exitCodeForOutcome", () => {
         branch: "main",
         githubSha: "abc123",
         overlayFingerprint: "def456",
+        dryRun: false,
       }),
     ).toBe(0);
   });
 
   it("returns 0 for a merged outcome", () => {
-    expect(exitCodeForOutcome({ kind: "merged", branch: "feature" })).toBe(0);
+    expect(
+      exitCodeForOutcome({ kind: "merged", branch: "feature", dryRun: false }),
+    ).toBe(0);
   });
 
   it("returns 1 for a conflict outcome", () => {
@@ -53,6 +56,32 @@ describe("formatOutcome", () => {
     );
 
     expect(text).toBe("main is already up to date (no-op).");
+  });
+
+  it("distinguishes a dry-run rebuild from a real one in its wording", () => {
+    const real = formatOutcome(
+      {
+        kind: "rebuilt",
+        branch: "main",
+        githubSha: "abc123",
+        overlayFingerprint: "def456",
+        dryRun: false,
+      },
+      { json: false },
+    );
+    const dry = formatOutcome(
+      {
+        kind: "rebuilt",
+        branch: "main",
+        githubSha: "abc123",
+        overlayFingerprint: "def456",
+        dryRun: true,
+      },
+      { json: false },
+    );
+
+    expect(real).not.toBe(dry);
+    expect(dry).toMatch(/dry run/u);
   });
 
   it("renders a conflict outcome as JSON when json is true", () => {

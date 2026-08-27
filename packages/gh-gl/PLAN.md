@@ -212,8 +212,12 @@ that directory got onto disk — a git checkout, an extracted archive, anything.
 
 No push-retry logic on this path (unlike the rebuild path): a prototype branch has
 a single human owner by construction, so the concurrent-writer race the rebuild
-path guards against doesn't apply here. A rejected push just means the owner's
-local branch is behind — a normal git situation they resolve the normal way.
+path guards against doesn't apply here. **A rejected push is a real error (exit
+`2`), not a silent success** — it means the remote moved during this run (e.g. a
+concurrent invocation, or the owner pushing from elsewhere), so the local merge
+that was just computed no longer applies cleanly to the remote's current state.
+The fix is a normal git one (fetch, merge, resolve, push locally), but the CLI
+must not report `merged` when nothing actually reached the remote.
 
 ## Operational assumptions
 
@@ -242,17 +246,30 @@ deferred.
 ## Testing
 
 - **Unit tests** — pure logic, no git or filesystem: trailer parsing/formatting,
-  conflict-recovery message generation, Zod validation of CLI flags.
+  token-requirement validation, sync-outcome formatting/exit-code mapping.
 - **Integration tests** — real local git repositories on disk standing in for
-  GitHub and GitLab. Git doesn't distinguish a local path remote from a real
-  GitHub/GitLab URL, so this exercises the actual `git` binary and its actual
-  merge algorithm — not a mock. Covers: rebuild no-op vs. rebuild-triggered by
-  GitHub change vs. by overlay-only change vs. upstream file deletion; clean merge;
-  conflicting merge (abort, no push, correct recovery message); missing/invalid
-  env vars producing the varlock-driven error and correct exit code.
-- **Explicitly out of automated CI:** the real `GIT_ASKPASS` path against a real
-  GitHub/GitLab server — needs real credentials and hosts, verified manually
-  during development instead.
+  GitHub and GitLab (including a genuinely bare variant, for tests that push
+  concurrently — a non-bare remote's `denyCurrentBranch=updateInstead`
+  workaround has its own working-tree-update semantics that a real, bare
+  GitHub/GitLab remote never exercises). Git doesn't distinguish a local path
+  remote from a real GitHub/GitLab URL, so this exercises the actual `git`
+  binary and its actual merge algorithm — not a mock. Covers: rebuild no-op
+  vs. rebuild-triggered by GitHub change vs. by overlay-only change vs.
+  upstream file deletion; the rebuild path's single-retry-then-fail behavior
+  on a concurrent push race; dry-run producing no push on both paths; clean
+  merge; a concurrent push race on the merge path surfacing as a real error
+  instead of a silent false "merged"; conflicting merge (abort, no push,
+  correct recovery message).
+- **Explicitly out of automated CI:**
+  - The real `GIT_ASKPASS` path against a real GitHub/GitLab server — needs
+    real credentials and hosts, verified manually during development instead.
+  - The `varlock run` subprocess boundary itself (missing/invalid env vars
+    producing the correct CLI-level error and exit code) — this requires
+    spawning the actual built `dist/cli.js` through a real `varlock`
+    subprocess, not just calling `sync()`/`validateTokens()` directly.
+    `validateTokens()`'s own logic is unit-tested; the varlock wiring around
+    it has been verified manually (see PR discussion) but has no automated
+    test yet.
 - No `vi.mock`/`jest.mock` anywhere, per `AGENTS.md` — and nothing in this design
   needs it. MSW is not used: this tool makes no REST API calls to GitHub or GitLab
   at any point (see **Default branch detection** above), so there's no JSON

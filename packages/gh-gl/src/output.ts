@@ -11,8 +11,9 @@ export type SyncOutcome =
       branch: string;
       githubSha: string;
       overlayFingerprint: string;
+      dryRun: boolean;
     }
-  | { kind: "merged"; branch: string }
+  | { kind: "merged"; branch: string; dryRun: boolean }
   | {
       kind: "conflict";
       branch: string;
@@ -38,9 +39,13 @@ function formatOutcomeAsText(outcome: Readonly<SyncOutcome>): string {
     case "no-op":
       return `${outcome.branch} is already up to date (no-op).`;
     case "rebuilt":
-      return `${outcome.branch} rebuilt from GitHub's default branch and the overlay.`;
+      return outcome.dryRun
+        ? `${outcome.branch} would be rebuilt from GitHub's default branch and the overlay (dry run, nothing pushed).`
+        : `${outcome.branch} rebuilt from GitHub's default branch and the overlay.`;
     case "merged":
-      return `${outcome.branch} merged cleanly.`;
+      return outcome.dryRun
+        ? `${outcome.branch} would merge cleanly (dry run, nothing pushed).`
+        : `${outcome.branch} merged cleanly.`;
     case "conflict":
       return [
         `${outcome.branch} has a merge conflict and needs a human:`,
