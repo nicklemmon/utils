@@ -39,7 +39,9 @@ about.
 
 - `@nicklemmon/gh-gl`, at `packages/gh-gl`, scaffolded like `packages/example`
   (tsdown build, vitest, TypeScript, oxlint conventions from `AGENTS.md`).
-- Binary name: `gh-gl`.
+- Binary name: `gh-gl`, built from two entry points: `cli.ts` (thin shim that
+  re-execs under `varlock run`) and `cli-impl.ts` (the real `commander` program).
+  See **Auth → Schema resolution** for why the shim exists.
 - CLI framework: `commander`.
 - Env var schema: `varlock` (`.env.schema`), not Zod — see **Auth** below.
 
@@ -115,13 +117,33 @@ if (isHttps(githubUrl) && !ENV.GITHUB_TOKEN) {
 }
 ```
 
-**Schema resolution:** varlock reads `.env.schema` from the current working
-directory by default and does not search parent directories. Since `gh-gl` is
-meant to be invoked from an arbitrary working directory (a CI job, a wrapper
-script, anywhere), it cannot rely on cwd resolution. Instead, the CLI resolves the
-absolute path to its own bundled `.env.schema` (via `import.meta.url`, relative to
-the package's own install location) and passes it explicitly, so schema resolution
-doesn't depend on where the caller happens to run it from.
+**Schema resolution:** varlock's `ENV` object (`varlock/env`) does not parse
+`.env.schema` itself — it only reads an already-resolved env blob
+(`__VARLOCK_ENV`) that the separate `varlock` CLI injects into a child process via
+`varlock run`. varlock reads `.env.schema` from the current working directory by
+default and does not search parent directories, so a plain `gh-gl` invocation from
+an arbitrary working directory (a CI job, a wrapper script, anywhere) would not
+find the schema bundled inside the installed package.
+
+`packages/gh-gl`'s published `bin` entry is therefore a thin shim, not the CLI
+itself:
+
+1. `bin` → `dist/cli.js`. On start, it resolves its own package directory (via
+   `import.meta.url`) — this is where `.env.schema` and the real implementation
+   (`dist/cli-impl.js`) live.
+2. It re-execs itself as a child process:
+   `varlock run --path <package-dir> -- node <package-dir>/dist/cli-impl.js <argv>`,
+   resolving `varlock`'s own executable path explicitly (not via `PATH`, which
+   isn't guaranteed to include it for a global install).
+3. `varlock run --path` resolves `.env.schema` from the explicit path, validates
+   it, and injects the result into the child's env as `__VARLOCK_ENV`.
+4. `dist/cli-impl.js` — the actual `commander` program — runs as that child and
+   reads `ENV` from `varlock/env` normally.
+
+This costs a second node process per invocation. Accepted: `gh-gl` already shells
+out to `git` repeatedly per run, so one more process start is not the dominant
+cost, and it keeps schema resolution independent of the caller's cwd without
+depending on `varlock`'s internal (non-public) `loadEnvGraph` API.
 
 Non-secret config (`--overlay`, `--github-url`, `--gitlab-url`, `--branch`) stays
 as CLI flags for now. Config-file support is a possible later addition, not v1.
