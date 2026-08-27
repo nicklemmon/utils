@@ -1,32 +1,21 @@
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { execa } from "execa";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-
-import { execa } from "execa";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  createBareFixtureRepo,
-  createFixtureRepo,
-} from "./test-support/fixture-repo.js";
-import { sync } from "./sync.js";
 import type { SyncOutcome } from "./output.js";
 
+import { sync } from "./sync.js";
+import { createBareFixtureRepo, createFixtureRepo } from "./test-support/fixture-repo.js";
+
 /**
- * Reduce a `sync()` call's settlement to a single label, so the concurrent
- * race test can assert on plain strings instead of typed result objects
- * (dodging a `PromiseSettledResult`/readonly-parameter lint conflict that
- * has nothing to do with the behavior under test).
+ * Reduce a `sync()` call's settlement to a single label, so the concurrent race test can assert on
+ * plain strings instead of typed result objects (dodging a
+ * `PromiseSettledResult`/readonly-parameter lint conflict that has nothing to do with the behavior
+ * under test).
  */
-async function settleSyncLabel(
-  promise: Readonly<Promise<SyncOutcome>>,
-): Promise<string> {
+async function settleSyncLabel(promise: Readonly<Promise<SyncOutcome>>): Promise<string> {
   try {
     const outcome = await promise;
 
@@ -36,10 +25,7 @@ async function settleSyncLabel(
   }
 }
 
-function countLabel(
-  labels: ReadonlyArray<string>,
-  label: string,
-): number {
+function countLabel(labels: ReadonlyArray<string>, label: string): number {
   let count = 0;
 
   for (const current of labels) {
@@ -136,9 +122,7 @@ describe("sync", () => {
     });
 
     expect(second.kind).toBe("rebuilt");
-    expect(readFileSync(path.join(gitlab.dir, ".gitlab-ci.yml"), "utf8")).toBe(
-      "stages: [build]\n",
-    );
+    expect(readFileSync(path.join(gitlab.dir, ".gitlab-ci.yml"), "utf8")).toBe("stages: [build]\n");
   });
 
   it("drops files deleted on GitHub's default branch from the rebuilt tree", async () => {
@@ -183,9 +167,7 @@ describe("sync", () => {
 
     expect(result.kind).toBe("rebuilt");
     expect(existsSync(path.join(gitlab.dir, "old-file.txt"))).toBe(false);
-    expect(readFileSync(path.join(gitlab.dir, "README.md"), "utf8")).toBe(
-      "hello",
-    );
+    expect(readFileSync(path.join(gitlab.dir, "README.md"), "utf8")).toBe("hello");
   });
 
   it("does not push and reports dryRun on a dry-run rebuild", async () => {
@@ -215,12 +197,7 @@ describe("sync", () => {
 
     expect(result).toMatchObject({ kind: "rebuilt", dryRun: true });
 
-    const { stdout: tipSha } = await execa("git", [
-      "-C",
-      gitlab.dir,
-      "rev-parse",
-      "main",
-    ]);
+    const { stdout: tipSha } = await execa("git", ["-C", gitlab.dir, "rev-parse", "main"]);
 
     expect(tipSha).toBe(seedSha);
   });
@@ -247,9 +224,7 @@ describe("sync", () => {
       sync({ githubUrl: github.dir, gitlabUrl: gitlab.dir, overlayDir, dryRun: false }),
     ]);
 
-    expect(new Set([first.kind, second.kind])).toEqual(
-      new Set(["no-op", "rebuilt"]),
-    );
+    expect(new Set([first.kind, second.kind])).toEqual(new Set(["no-op", "rebuilt"]));
   });
 
   it("merges the default branch cleanly into a prototype branch", async () => {
@@ -277,13 +252,7 @@ describe("sync", () => {
       dryRun: false,
     });
     await gitlab.commit("A prototype branch", { "prototype.md": "wip" });
-    await execa("git", [
-      "-C",
-      gitlab.dir,
-      "branch",
-      "prototype",
-      "HEAD",
-    ]);
+    await execa("git", ["-C", gitlab.dir, "branch", "prototype", "HEAD"]);
 
     const result = await sync({
       githubUrl: github.dir,
@@ -323,9 +292,7 @@ describe("sync", () => {
     await gitlab.commit("A prototype branch", { "prototype.md": "wip" });
     await execa("git", ["-C", gitlab.dir, "branch", "prototype", "HEAD"]);
 
-    const beforeSha = (
-      await execa("git", ["-C", gitlab.dir, "rev-parse", "prototype"])
-    ).stdout;
+    const beforeSha = (await execa("git", ["-C", gitlab.dir, "rev-parse", "prototype"])).stdout;
 
     const result = await sync({
       githubUrl: github.dir,
@@ -337,9 +304,7 @@ describe("sync", () => {
 
     expect(result).toEqual({ kind: "merged", branch: "prototype", dryRun: true });
 
-    const afterSha = (
-      await execa("git", ["-C", gitlab.dir, "rev-parse", "prototype"])
-    ).stdout;
+    const afterSha = (await execa("git", ["-C", gitlab.dir, "rev-parse", "prototype"])).stdout;
 
     expect(afterSha).toBe(beforeSha);
   });
@@ -396,9 +361,7 @@ describe("sync", () => {
       dryRun: false,
     });
 
-    const beforeSha = (
-      await execa("git", ["-C", workDir, "rev-parse", "prototype"])
-    ).stdout;
+    const beforeSha = (await execa("git", ["-C", workDir, "rev-parse", "prototype"])).stdout;
 
     const labels = await Promise.all([
       settleSyncLabel(
@@ -465,9 +428,7 @@ describe("sync", () => {
     await execa("git", ["-C", gitlab.dir, "commit", "-m", "Conflicting change"]);
     await execa("git", ["-C", gitlab.dir, "checkout", "main"]);
 
-    const beforeSha = (
-      await execa("git", ["-C", gitlab.dir, "rev-parse", "prototype"])
-    ).stdout;
+    const beforeSha = (await execa("git", ["-C", gitlab.dir, "rev-parse", "prototype"])).stdout;
 
     await github.commit("Change on GitHub", { "README.md": "changed on github" });
     await sync({
@@ -491,9 +452,7 @@ describe("sync", () => {
       conflictingFiles: ["README.md"],
     });
 
-    const afterSha = (
-      await execa("git", ["-C", gitlab.dir, "rev-parse", "prototype"])
-    ).stdout;
+    const afterSha = (await execa("git", ["-C", gitlab.dir, "rev-parse", "prototype"])).stdout;
 
     expect(afterSha).toBe(beforeSha);
   });

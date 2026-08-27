@@ -1,8 +1,7 @@
+import { execa } from "execa";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-
-import { execa } from "execa";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -54,9 +53,7 @@ describe("detectDefaultBranch", () => {
     cleanups.push(repo.cleanup);
     await repo.commit("Initial commit", { "README.md": "hello" });
 
-    await expect(
-      detectDefaultBranch(repo.dir, "unused-token"),
-    ).resolves.toBe("main");
+    await expect(detectDefaultBranch(repo.dir, "unused-token")).resolves.toBe("main");
   });
 });
 
@@ -121,12 +118,8 @@ describe("extractTree", () => {
     await fetchRef(scratchDir, repo.dir, "main");
     await extractTree(scratchDir, "FETCH_HEAD", destDir);
 
-    expect(readFileSync(path.join(destDir, "README.md"), "utf8")).toBe(
-      "hello",
-    );
-    expect(readFileSync(path.join(destDir, "src/index.ts"), "utf8")).toBe(
-      "export {};",
-    );
+    expect(readFileSync(path.join(destDir, "README.md"), "utf8")).toBe("hello");
+    expect(readFileSync(path.join(destDir, "src/index.ts"), "utf8")).toBe("export {};");
   });
 });
 
@@ -232,9 +225,7 @@ describe("commitAll", () => {
     writeFileSync(path.join(scratchDir, "README.md"), "hello");
     await commitAll(scratchDir, "Sync GitHub into GitLab");
 
-    await expect(readCommitMessage(scratchDir, "HEAD")).resolves.toBe(
-      "Sync GitHub into GitLab\n",
-    );
+    await expect(readCommitMessage(scratchDir, "HEAD")).resolves.toBe("Sync GitHub into GitLab\n");
   });
 });
 
@@ -267,9 +258,7 @@ describe("pushBranch", () => {
     await setSymbolicHead(scratchDir, "refs/heads/main");
     await commitAll(scratchDir, "Update README");
 
-    await expect(pushBranch(scratchDir, remote.dir, "main")).resolves.toBe(
-      true,
-    );
+    await expect(pushBranch(scratchDir, remote.dir, "main")).resolves.toBe(true);
   });
 
   it("returns false when the push is rejected as non-fast-forward", async () => {
@@ -298,9 +287,7 @@ describe("pushBranch", () => {
       "README.md": "updated on the remote",
     });
 
-    await expect(pushBranch(scratchDir, remote.dir, "main")).resolves.toBe(
-      false,
-    );
+    await expect(pushBranch(scratchDir, remote.dir, "main")).resolves.toBe(false);
   });
 });
 
@@ -373,12 +360,7 @@ describe("mergeRef and abortMergeConflict", () => {
 
     await abortMergeConflict(scratchDir);
 
-    const { stdout } = await execa("git", [
-      "-C",
-      scratchDir,
-      "status",
-      "--porcelain=v1",
-    ]);
+    const { stdout } = await execa("git", ["-C", scratchDir, "status", "--porcelain=v1"]);
 
     expect(stdout).toBe("");
   });

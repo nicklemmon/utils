@@ -1,7 +1,6 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-
 import { afterEach, describe, expect, it } from "vitest";
 
 import { copyOverlayOnto } from "./overlay.js";
@@ -28,8 +27,6 @@ describe("copyOverlayOnto", () => {
 
     await copyOverlayOnto(overlayDir, destDir);
 
-    expect(readFileSync(path.join(destDir, "README.md"), "utf8")).toBe(
-      "from overlay",
-    );
+    expect(readFileSync(path.join(destDir, "README.md"), "utf8")).toBe("from overlay");
   });
 });

@@ -8,14 +8,14 @@
     "url": "git+https://github.com/nicklemmon/utils.git",
     "directory": "packages/gh-gl"
   },
+  "bin": {
+    "gh-gl": "./dist/cli.js"
+  },
   "files": [
     "dist"
   ],
   "type": "module",
   "sideEffects": false,
-  "bin": {
-    "gh-gl": "./dist/cli.js"
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

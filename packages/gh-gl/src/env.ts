@@ -9,8 +9,8 @@ export type TokenValidationInput = {
 };
 
 /**
- * Check that every HTTPS remote has its matching token set. An SSH remote
- * never requires a token, since it authenticates via the ambient SSH agent.
+ * Check that every HTTPS remote has its matching token set. An SSH remote never requires a token,
+ * since it authenticates via the ambient SSH agent.
  *
  * @param input - The remote URLs and the tokens currently available.
  * @returns One error message per missing required token. Empty when valid.

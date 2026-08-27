@@ -27,9 +27,7 @@ describe("exitCodeForOutcome", () => {
   });
 
   it("returns 0 for a merged outcome", () => {
-    expect(
-      exitCodeForOutcome({ kind: "merged", branch: "feature", dryRun: false }),
-    ).toBe(0);
+    expect(exitCodeForOutcome({ kind: "merged", branch: "feature", dryRun: false })).toBe(0);
   });
 
   it("returns 1 for a conflict outcome", () => {

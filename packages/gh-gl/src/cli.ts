@@ -11,10 +11,9 @@ const VarlockPackageJsonSchema = z.object({
 });
 
 /**
- * Find the installed `varlock` package's own directory. `varlock`'s
- * `package.json` doesn't expose a `./package.json` export subpath, so it
- * can't be resolved directly — instead, resolve its main entry point (which
- * *is* exported) and walk up to the nearest `package.json` named `varlock`.
+ * Find the installed `varlock` package's own directory. `varlock`'s `package.json` doesn't expose a
+ * `./package.json` export subpath, so it can't be resolved directly — instead, resolve its main
+ * entry point (which _is_ exported) and walk up to the nearest `package.json` named `varlock`.
  *
  * @returns The absolute path to varlock's package directory.
  */
@@ -44,8 +43,8 @@ function resolveVarlockPackageDir(): string {
 }
 
 /**
- * Resolve the `varlock` CLI's own script path on disk, rather than relying
- * on `PATH` (which isn't guaranteed to include it for a global install).
+ * Resolve the `varlock` CLI's own script path on disk, rather than relying on `PATH` (which isn't
+ * guaranteed to include it for a global install).
  *
  * @returns The absolute path to varlock's bin script.
  */

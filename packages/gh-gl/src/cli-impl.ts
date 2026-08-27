@@ -37,9 +37,7 @@ function fail(message: string, json: boolean): never {
   return process.exit(2);
 }
 
-function formatZodIssues(
-  issues: ReadonlyArray<Readonly<{ message: string }>>,
-): string {
+function formatZodIssues(issues: ReadonlyArray<Readonly<{ message: string }>>): string {
   const messages: Array<string> = [];
 
   for (const issue of issues) {
@@ -97,39 +95,17 @@ const program = new Command();
 
 program
   .name("gh-gl")
-  .description(
-    "Sync a GitHub repo's default branch into a downstream GitLab repo",
-  )
+  .description("Sync a GitHub repo's default branch into a downstream GitLab repo")
   .exitOverride();
 
 program
   .command("sync")
-  .requiredOption(
-    "--github-url <url>",
-    "Full git remote URL for the source repo",
-  )
-  .requiredOption(
-    "--gitlab-url <url>",
-    "Full git remote URL for the target repo",
-  )
-  .requiredOption(
-    "--overlay <path>",
-    "Local directory to layer on top of GitHub's tree",
-  )
-  .option(
-    "--branch <name>",
-    "Target branch (defaults to GitLab's default branch)",
-  )
-  .option(
-    "--dry-run",
-    "Run the full logic, skip the final commit/push",
-    false,
-  )
-  .option(
-    "--json",
-    "Emit one JSON object to stdout instead of human-readable text",
-    false,
-  )
+  .requiredOption("--github-url <url>", "Full git remote URL for the source repo")
+  .requiredOption("--gitlab-url <url>", "Full git remote URL for the target repo")
+  .requiredOption("--overlay <path>", "Local directory to layer on top of GitHub's tree")
+  .option("--branch <name>", "Target branch (defaults to GitLab's default branch)")
+  .option("--dry-run", "Run the full logic, skip the final commit/push", false)
+  .option("--json", "Emit one JSON object to stdout instead of human-readable text", false)
   .action(runSyncCommand);
 
 try {
@@ -137,8 +113,7 @@ try {
 } catch (error) {
   if (
     error instanceof CommanderError &&
-    (error.code === "commander.helpDisplayed" ||
-      error.code === "commander.version")
+    (error.code === "commander.helpDisplayed" || error.code === "commander.version")
   ) {
     process.exit(error.exitCode);
   }

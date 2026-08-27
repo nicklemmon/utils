@@ -22,9 +22,7 @@ describe("validateTokens", () => {
       gitlabToken: "gl-token",
     });
 
-    expect(errors).toEqual([
-      "GITHUB_TOKEN is required when --github-url is HTTPS",
-    ]);
+    expect(errors).toEqual(["GITHUB_TOKEN is required when --github-url is HTTPS"]);
   });
 
   it("does not require a token for an SSH remote, even when missing", () => {

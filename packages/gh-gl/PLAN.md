@@ -11,12 +11,14 @@ deploys per branch, entirely via the layered `.gitlab-ci.yml` — no CLI involve
 ## Domain model
 
 **Two repos:**
+
 - GitHub repo — source of truth, public or private, the team's normal workflow.
 - GitLab repo — private, downstream. Holds a machine-managed default branch, plus
   any number of human-owned prototype branches, plus a dedicated branch that holds
   overlay content.
 
 **Two kinds of branches inside the GitLab repo:**
+
 - **Default branch** (same name as GitHub's default branch, e.g. `main`) — fully
   machine-managed. No one commits to it by hand. Its tree is always exactly
   `GitHub's tree + overlay content on top`. Rebuilt from scratch on every sync.
@@ -49,14 +51,14 @@ about.
 
 One command: `gh-gl sync`
 
-| Flag | Required | Notes |
-|---|---|---|
-| `--github-url <url>` | yes | Full git remote URL for the source repo. |
-| `--gitlab-url <url>` | yes | Full git remote URL for the target repo. |
-| `--overlay <path>` | yes | Local directory to layer on top of GitHub's tree. |
-| `--branch <name>` | no | Target branch. Defaults to the GitLab repo's auto-detected default branch. |
-| `--dry-run` | no | Run the full logic, skip the final commit/push. Reports what would happen. |
-| `--json` | no | Emit one JSON object to stdout instead of human-readable text. |
+| Flag                 | Required | Notes                                                                      |
+| -------------------- | -------- | -------------------------------------------------------------------------- |
+| `--github-url <url>` | yes      | Full git remote URL for the source repo.                                   |
+| `--gitlab-url <url>` | yes      | Full git remote URL for the target repo.                                   |
+| `--overlay <path>`   | yes      | Local directory to layer on top of GitHub's tree.                          |
+| `--branch <name>`    | no       | Target branch. Defaults to the GitLab repo's auto-detected default branch. |
+| `--dry-run`          | no       | Run the full logic, skip the final commit/push. Reports what would happen. |
+| `--json`             | no       | Emit one JSON object to stdout instead of human-readable text.             |
 
 **Path selection rule:** if the resolved `--branch` value (explicit or defaulted)
 equals the auto-detected default branch name, run the **rebuild path**. Otherwise,
@@ -103,7 +105,7 @@ GitLab can each use either scheme independently).
   `git` and lets SSH do what it already does on that machine.
 
 **Tokens are conditionally required, not statically required.** `.env.schema`
-declares `GITHUB_TOKEN` and `GITLAB_TOKEN` as `@sensitive` but *not* `@required` —
+declares `GITHUB_TOKEN` and `GITLAB_TOKEN` as `@sensitive` but _not_ `@required` —
 varlock still owns masking/redaction for both, but whether a given token is needed
 depends on a runtime value (the URL scheme in `--github-url`/`--gitlab-url`), which
 a static schema can't express. The CLI checks this after parsing the URLs: any
@@ -279,7 +281,7 @@ deferred.
 ## Exit codes and output
 
 Three exit code tiers, deliberately coarse — reserved for "does a wrapper need to
-*behave differently*," not for every distinction in outcome (richer detail belongs
+_behave differently_," not for every distinction in outcome (richer detail belongs
 in output content, not in the exit code):
 
 - **`0`** — success. Covers both "rebuilt/merged and pushed" and "no-op, nothing

@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import type { SyncOutcome } from "./output.js";
+
 import {
   abortMergeConflict,
   checkoutBranch,
@@ -18,7 +20,6 @@ import {
   setSymbolicHead,
 } from "./git.js";
 import { copyOverlayOnto } from "./overlay.js";
-import type { SyncOutcome } from "./output.js";
 import { formatSyncTrailers, parseSyncTrailers } from "./trailers.js";
 
 /** Inputs for a single `gh-gl sync` run. */
@@ -48,10 +49,7 @@ async function attemptRebuild(
       token: options.gitlabToken,
     });
 
-    const previousMessage = await readCommitMessage(
-      scratchDir,
-      `refs/heads/${branch}`,
-    );
+    const previousMessage = await readCommitMessage(scratchDir, `refs/heads/${branch}`);
     const previousTrailers = parseSyncTrailers(previousMessage);
 
     await fetchRef(scratchDir, options.githubUrl, githubDefaultBranch, {
@@ -60,10 +58,7 @@ async function attemptRebuild(
     });
 
     const githubSha = await resolveRef(scratchDir, "FETCH_HEAD");
-    const overlayFingerprint = await fingerprintDirectory(
-      scratchDir,
-      options.overlayDir,
-    );
+    const overlayFingerprint = await fingerprintDirectory(scratchDir, options.overlayDir);
 
     if (
       previousTrailers !== undefined &&
@@ -91,12 +86,7 @@ async function attemptRebuild(
 
     await commitAll(scratchDir, `Sync GitHub into GitLab\n\n${trailers}`);
 
-    const pushed = await pushBranch(
-      scratchDir,
-      options.gitlabUrl,
-      branch,
-      options.gitlabToken,
-    );
+    const pushed = await pushBranch(scratchDir, options.gitlabUrl, branch, options.gitlabToken);
 
     if (!pushed) {
       return { kind: "push-rejected" };
@@ -115,10 +105,10 @@ async function attemptRebuild(
 }
 
 /**
- * Run the rebuild path for `branch`: wipe-and-rebuild it from GitHub's
- * default branch plus the overlay. Retries once, from scratch, if the push
- * is rejected as non-fast-forward (e.g. a concurrent sync run won the race);
- * a second rejection is a real error, not a race to keep retrying.
+ * Run the rebuild path for `branch`: wipe-and-rebuild it from GitHub's default branch plus the
+ * overlay. Retries once, from scratch, if the push is rejected as non-fast-forward (e.g. a
+ * concurrent sync run won the race); a second rejection is a real error, not a race to keep
+ * retrying.
  *
  * @param options - The sync inputs.
  * @param branch - The GitLab branch being rebuilt (its own default branch).
@@ -174,12 +164,7 @@ async function runMerge(
     return { kind: "merged", branch, dryRun: true };
   }
 
-  const pushed = await pushBranch(
-    scratchDir,
-    options.gitlabUrl,
-    branch,
-    options.gitlabToken,
-  );
+  const pushed = await pushBranch(scratchDir, options.gitlabUrl, branch, options.gitlabToken);
 
   if (!pushed) {
     throw new Error(
@@ -191,24 +176,16 @@ async function runMerge(
 }
 
 /**
- * Run one `gh-gl sync`: sync GitHub's default branch into GitLab's default
- * branch (rebuild path), or merge GitLab's default branch into a prototype
- * branch (merge path), depending on which branch is targeted.
+ * Run one `gh-gl sync`: sync GitHub's default branch into GitLab's default branch (rebuild path),
+ * or merge GitLab's default branch into a prototype branch (merge path), depending on which branch
+ * is targeted.
  *
  * @param options - The sync inputs.
  * @returns What happened.
  */
-export async function sync(
-  options: Readonly<SyncOptions>,
-): Promise<SyncOutcome> {
-  const githubDefaultBranch = await detectDefaultBranch(
-    options.githubUrl,
-    options.githubToken,
-  );
-  const gitlabDefaultBranch = await detectDefaultBranch(
-    options.gitlabUrl,
-    options.gitlabToken,
-  );
+export async function sync(options: Readonly<SyncOptions>): Promise<SyncOutcome> {
+  const githubDefaultBranch = await detectDefaultBranch(options.githubUrl, options.githubToken);
+  const gitlabDefaultBranch = await detectDefaultBranch(options.gitlabUrl, options.gitlabToken);
 
   if (githubDefaultBranch === undefined || gitlabDefaultBranch === undefined) {
     throw new Error(

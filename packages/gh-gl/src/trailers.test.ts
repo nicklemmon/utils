@@ -18,9 +18,7 @@ describe("parseSyncTrailers", () => {
   });
 
   it("returns undefined when a trailer is missing", () => {
-    const message = ["Initial commit", "", "Synced-from-github: abc123"].join(
-      "\n",
-    );
+    const message = ["Initial commit", "", "Synced-from-github: abc123"].join("\n");
 
     expect(parseSyncTrailers(message)).toBeUndefined();
   });
