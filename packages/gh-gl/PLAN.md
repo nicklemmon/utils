@@ -65,29 +65,66 @@ branch still triggers rebuild, not a self-merge no-op.
 Full URLs (not `owner/repo` shorthand) so self-hosted GitLab works identically to
 gitlab.com, with no platform-specific parsing.
 
+**Scope: one invocation, one branch.** `gh-gl sync` operates on exactly one target
+branch per run. Discovering the full set of prototype branches, deciding the order
+to sync them in, and handling partial failure across many branches is a wrapper's
+job (a script, a CI matrix, a scheduled job) — not something this CLI does.
+
 ## Default branch detection
 
 `git ls-remote --symref <url> HEAD` against each repo — no GitHub/GitLab REST API
 call anywhere in the tool. This is the same underlying mechanism both platforms
 use to implement their own "default branch" setting, so it agrees with the API in
-every case that matters. The one edge case (an empty repo with zero commits) has
-no meaningful default branch either way — fails with a clear error, not a
-mismatch.
+every case that matters.
+
+**Precondition: the GitLab repo must already have a commit on its default branch
+before the first sync.** An empty repo has no resolvable `HEAD` for `ls-remote` to
+report. Bootstrapping an empty GitLab repo is explicitly out of scope for v1 — seed
+it with at least one commit (even an empty initial commit) before running `gh-gl
+sync` against it for the first time. The CLI fails with a clear error naming this
+precondition if `ls-remote` can't resolve `HEAD` on either remote.
 
 ## Auth
 
-- Secrets (`GITHUB_TOKEN`, `GITLAB_TOKEN`) come from env vars only, declared
-  `@required @sensitive` in `.env.schema`. varlock owns validation and error
-  messages for these entirely — no secondary Zod schema for env vars. Zod still
-  validates CLI flags (a different boundary, not covered by varlock).
-- Tokens are injected into git operations via `GIT_ASKPASS`: for each `execa` git
-  call, the CLI sets a scoped env var (e.g. `GIT_ASKPASS_TOKEN`) to the token that
-  call needs, and points `GIT_ASKPASS` at one small shared helper script that just
-  echoes it. The token never appears in a URL, in argv, or in any git config file.
-  This works identically for GitHub and GitLab — `GIT_ASKPASS` is a generic git
-  mechanism, not platform-specific.
-- Non-secret config (`--overlay`, `--github-url`, `--gitlab-url`, `--branch`) stays
-  as CLI flags for now. Config-file support is a possible later addition, not v1.
+**Transport:** both HTTPS and SSH remote URLs are supported, per-remote (GitHub and
+GitLab can each use either scheme independently).
+
+- **HTTPS remotes** authenticate via `GIT_ASKPASS`: for each `execa` git call
+  against an HTTPS remote, the CLI sets a scoped env var (e.g. `GIT_ASKPASS_TOKEN`)
+  to the token that call needs, and points `GIT_ASKPASS` at one small shared helper
+  script that just echoes it. The token never appears in a URL, in argv, or in any
+  git config file. This works identically for GitHub and GitLab — `GIT_ASKPASS` is
+  a generic git mechanism, not platform-specific.
+- **SSH remotes** authenticate via the ambient SSH agent/keys already available in
+  the environment the CLI runs in. The CLI does not manage SSH keys, does not set
+  `GIT_ASKPASS`, and does not need a token for that remote at all — it just invokes
+  `git` and lets SSH do what it already does on that machine.
+
+**Tokens are conditionally required, not statically required.** `.env.schema`
+declares `GITHUB_TOKEN` and `GITLAB_TOKEN` as `@sensitive` but *not* `@required` —
+varlock still owns masking/redaction for both, but whether a given token is needed
+depends on a runtime value (the URL scheme in `--github-url`/`--gitlab-url`), which
+a static schema can't express. The CLI checks this after parsing the URLs: any
+HTTPS remote whose matching token is missing fails with a clear error naming the
+missing env var and which flag caused it to be required. An SSH remote never
+requires its token.
+
+```
+if (isHttps(githubUrl) && !ENV.GITHUB_TOKEN) {
+  error("GITHUB_TOKEN is required when --github-url is HTTPS")
+}
+```
+
+**Schema resolution:** varlock reads `.env.schema` from the current working
+directory by default and does not search parent directories. Since `gh-gl` is
+meant to be invoked from an arbitrary working directory (a CI job, a wrapper
+script, anywhere), it cannot rely on cwd resolution. Instead, the CLI resolves the
+absolute path to its own bundled `.env.schema` (via `import.meta.url`, relative to
+the package's own install location) and passes it explicitly, so schema resolution
+doesn't depend on where the caller happens to run it from.
+
+Non-secret config (`--overlay`, `--github-url`, `--gitlab-url`, `--branch`) stays
+as CLI flags for now. Config-file support is a possible later addition, not v1.
 
 ## Git operations
 
@@ -109,13 +146,21 @@ installed.
 4. Compute the current GitHub HEAD SHA and the current overlay fingerprint (see
    below).
 5. **No-op check:** if both match the trailer values, stop — nothing to do.
-6. Otherwise, in a scratch working directory: delete everything, copy in GitHub's
-   tree, then copy the overlay directory on top (overlay always wins on path
-   collision, by construction — no merge logic).
+6. Otherwise, in a scratch working directory: clear it, extract GitHub's tree into
+   it via `git archive <ref> | tar -x` (not a plain filesystem copy — this
+   preserves file modes and symlinks instead of silently flattening them), then
+   copy the overlay directory on top (overlay always wins on path collision, by
+   construction — no merge logic). Git submodules and Git LFS pointer files inside
+   GitHub's tree are copied through as literal files, unresolved — out of scope for
+   v1.
 7. Commit the result onto the GitLab default branch, with the new
    `Synced-from-github` / `Synced-from-overlay` trailers in the message.
 8. Push. (Skip commit + push under `--dry-run`; report what would have happened
-   instead.)
+   instead.) **If the push is rejected as non-fast-forward** (e.g. a concurrent
+   sync run won the race): re-fetch the GitLab tip, re-read its trailers, and redo
+   steps 4–8 exactly once. If the retry's push is also rejected, stop and exit `2`
+   — no further retries. This handles the common transient race (two scheduled
+   runs overlapping) without turning the CLI into a general-purpose retry loop.
 
 **Why wipe-and-rebuild is safe here:** nobody commits to the default branch by
 hand, so there's no independent human history to destroy. The tree is always
@@ -140,6 +185,26 @@ that directory got onto disk — a git checkout, an extracted archive, anything.
    to finish it themselves (fetch, merge, resolve, push). The CLI never attempts
    automatic conflict resolution — these are real human-authored changes on both
    sides, and guessing wrong would silently corrupt someone's work.
+
+No push-retry logic on this path (unlike the rebuild path): a prototype branch has
+a single human owner by construction, so the concurrent-writer race the rebuild
+path guards against doesn't apply here. A rejected push just means the owner's
+local branch is behind — a normal git situation they resolve the normal way.
+
+## Operational assumptions
+
+Things this design depends on that the CLI does not itself enforce:
+
+- **The GitLab default branch is protected against direct human pushes** (e.g. via
+  GitLab branch protection rules). The rebuild path's wipe-and-rebuild safety
+  assumption — "nobody commits to the default branch by hand" — is a convention
+  the operator enforces, not something `gh-gl` checks or defends against.
+- **The GitLab repo is pre-seeded** with at least one commit on its default branch
+  before the first sync (see **Default branch detection**).
+- **Syncs for a given branch are not run concurrently** from two different
+  invocations. The rebuild path tolerates one transient race via a single retry
+  (see **Rebuild path**, step 8); it is not designed for sustained concurrent
+  writers.
 
 ## Pages deployment
 
