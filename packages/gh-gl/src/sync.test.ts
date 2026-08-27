@@ -5,7 +5,10 @@ import path from "node:path";
 import { execa } from "execa";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createFixtureRepo } from "./test-support/fixture-repo.js";
+import {
+  createBareFixtureRepo,
+  createFixtureRepo,
+} from "./test-support/fixture-repo.js";
 import { sync } from "./sync.js";
 
 describe("sync", () => {
@@ -54,6 +57,33 @@ describe("sync", () => {
     });
 
     expect(second.kind).toBe("no-op");
+  });
+
+  it("retries once after a concurrent push wins the race, converging to a consistent result", async () => {
+    const github = await createFixtureRepo();
+
+    cleanups.push(github.cleanup);
+    await github.commit("Initial commit", { "README.md": "hello" });
+
+    const gitlab = await createBareFixtureRepo({ ".gitkeep": "" });
+
+    cleanups.push(gitlab.cleanup);
+
+    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
+
+    cleanups.push(() => {
+      rmSync(overlayDir, { recursive: true, force: true });
+    });
+    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
+
+    const [first, second] = await Promise.all([
+      sync({ githubUrl: github.dir, gitlabUrl: gitlab.dir, overlayDir, dryRun: false }),
+      sync({ githubUrl: github.dir, gitlabUrl: gitlab.dir, overlayDir, dryRun: false }),
+    ]);
+
+    expect(new Set([first.kind, second.kind])).toEqual(
+      new Set(["no-op", "rebuilt"]),
+    );
   });
 
   it("merges the default branch cleanly into a prototype branch", async () => {

@@ -69,3 +69,42 @@ export async function createFixtureRepo(): Promise<FixtureRepo> {
 
   return { dir, commit, cleanup };
 }
+
+/** A throwaway bare git repository, for tests that need concurrent pushes. */
+export type BareFixtureRepo = {
+  dir: string;
+  cleanup: () => void;
+};
+
+/**
+ * Create a throwaway bare git repository, seeded with one commit. Unlike
+ * {@link createFixtureRepo}, this has no working tree to check out or edit
+ * directly — real GitHub/GitLab remotes are always bare. Use this instead of
+ * {@link createFixtureRepo} for tests that push to the same remote
+ * concurrently: a non-bare remote's `receive.denyCurrentBranch=updateInstead`
+ * workaround updates its working tree on every push, which two concurrent
+ * pushes can race on (`index.lock` contention) in a way a real, bare remote
+ * never can.
+ *
+ * @param seedFiles - Files to commit before the repo is made bare.
+ * @returns The bare repo's directory and a `cleanup`.
+ */
+export async function createBareFixtureRepo(
+  seedFiles: Readonly<Record<string, string>>,
+): Promise<BareFixtureRepo> {
+  const staging = await createFixtureRepo();
+
+  await staging.commit("Seed commit", seedFiles);
+
+  const dir = mkdtempSync(path.join(tmpdir(), "gh-gl-bare-"));
+
+  await execa("git", ["clone", "--bare", "--quiet", staging.dir, dir]);
+  staging.cleanup();
+
+  return {
+    dir,
+    cleanup: () => {
+      rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}

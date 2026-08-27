@@ -2,26 +2,54 @@ import { execa } from "execa";
 import path from "node:path";
 import { z } from "zod";
 
+import { createAskpass } from "./askpass.js";
+import type { Askpass } from "./askpass.js";
+
+/**
+ * Build the env overrides for an `execa` git call against a remote, when that
+ * remote is authenticated over HTTPS. SSH remotes authenticate via the
+ * ambient SSH agent instead and need no token, so `token` is `undefined` for
+ * them and this returns `undefined` — the git call runs with no extra env.
+ *
+ * @param token - The HTTPS credential for this remote, or `undefined` for an
+ *   SSH remote (or an HTTPS remote with no token, which will simply fail
+ *   auth as git normally would).
+ * @returns An `Askpass` to pass as `execa`'s `env` option, or `undefined`.
+ */
+function askpassFor(token: string | undefined): Askpass | undefined {
+  return token === undefined ? undefined : createAskpass(token);
+}
+
 /**
  * Detect the branch a remote's `HEAD` points at, the same mechanism GitHub
  * and GitLab use to implement their own "default branch" setting.
  *
  * @param remoteUrl - A full git remote URL (or local path, for tests).
+ * @param token - The HTTPS credential for `remoteUrl`, or `undefined` for an
+ *   SSH remote.
  * @returns The branch name, or `undefined` if `HEAD` doesn't resolve (e.g. an
  *   empty repository with no commits).
  */
 export async function detectDefaultBranch(
   remoteUrl: string,
+  token?: string,
 ): Promise<string | undefined> {
-  const { stdout } = await execa("git", [
-    "ls-remote",
-    "--symref",
-    remoteUrl,
-    "HEAD",
-  ]);
-  const match = /^ref: refs\/heads\/(.+)\tHEAD$/mu.exec(stdout);
+  const askpass = askpassFor(token);
 
-  return match === null ? undefined : match[1];
+  try {
+    const { stdout } = await execa(
+      "git",
+      ["ls-remote", "--symref", remoteUrl, "HEAD"],
+      askpass === undefined ? {} : { env: askpass.env },
+    );
+    const match = /^ref: refs\/heads\/(.+)\tHEAD$/mu.exec(stdout);
+
+    return match === null ? undefined : match[1];
+  } finally {
+    if (askpass !== undefined) {
+      askpass.cleanup();
+    }
+  }
 }
 
 /**
@@ -55,19 +83,36 @@ export async function initScratchRepo(dir: string): Promise<void> {
  *   which only reads tree content, but wrong for the merge path: two
  *   independently shallow-fetched branches look like unrelated histories to
  *   git, and `git merge` refuses them outright. Defaults to a full fetch.
+ *   `token` is the HTTPS credential for `remoteUrl`, or `undefined` for an
+ *   SSH remote.
  */
 export async function fetchRef(
   dir: string,
   remoteUrl: string,
   ref: string,
-  options?: Readonly<{ localRef?: string; shallow?: boolean }>,
+  options?: Readonly<{
+    localRef?: string;
+    shallow?: boolean;
+    token?: string | undefined;
+  }>,
 ): Promise<void> {
   const localRef = options === undefined ? undefined : options.localRef;
   const shallow = options === undefined ? false : options.shallow === true;
   const refspec = localRef === undefined ? ref : `${ref}:${localRef}`;
   const depthArgs = shallow ? ["--depth=1"] : [];
+  const askpass = askpassFor(options === undefined ? undefined : options.token);
 
-  await execa("git", ["-C", dir, "fetch", ...depthArgs, remoteUrl, refspec]);
+  try {
+    await execa(
+      "git",
+      ["-C", dir, "fetch", ...depthArgs, remoteUrl, refspec],
+      askpass === undefined ? {} : { env: askpass.env },
+    );
+  } finally {
+    if (askpass !== undefined) {
+      askpass.cleanup();
+    }
+  }
 }
 
 /**
@@ -131,7 +176,8 @@ export async function commitAll(dir: string, message: string): Promise<void> {
 }
 
 const ExecaFailureSchema = z.object({ stderr: z.string() });
-const REJECTED_PUSH_PATTERN = /\[rejected\]|\(fetch first\)|\(non-fast-forward\)/u;
+const REJECTED_PUSH_PATTERN =
+  /\[rejected\]|\[remote rejected\]|\(fetch first\)|\(non-fast-forward\)|\(failed to update ref\)|Up-to-date check failed/u;
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This function is the I/O boundary parser for a caught execa rejection.
 function isRejectedPush(error: unknown): boolean {
@@ -146,6 +192,8 @@ function isRejectedPush(error: unknown): boolean {
  * @param dir - A scratch repo previously created with {@link initScratchRepo}.
  * @param remoteUrl - A full git remote URL (or local path, for tests).
  * @param branch - The branch name, same on both the local repo and the remote.
+ * @param token - The HTTPS credential for `remoteUrl`, or `undefined` for an
+ *   SSH remote.
  * @returns `true` on a successful push, `false` when the remote rejected it
  *   as non-fast-forward (e.g. a concurrent sync run won the race). Any other
  *   failure is thrown.
@@ -154,9 +202,16 @@ export async function pushBranch(
   dir: string,
   remoteUrl: string,
   branch: string,
+  token?: string,
 ): Promise<boolean> {
+  const askpass = askpassFor(token);
+
   try {
-    await execa("git", ["-C", dir, "push", remoteUrl, `${branch}:${branch}`]);
+    await execa(
+      "git",
+      ["-C", dir, "push", remoteUrl, `${branch}:${branch}`],
+      askpass === undefined ? {} : { env: askpass.env },
+    );
 
     return true;
   } catch (error) {
@@ -165,6 +220,10 @@ export async function pushBranch(
     }
 
     throw error;
+  } finally {
+    if (askpass !== undefined) {
+      askpass.cleanup();
+    }
   }
 }
 

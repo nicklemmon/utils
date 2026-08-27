@@ -47,6 +47,17 @@ describe("detectDefaultBranch", () => {
 
     await expect(detectDefaultBranch(repo.dir)).resolves.toBeUndefined();
   });
+
+  it("still works when a token is passed for a non-HTTPS remote", async () => {
+    const repo = await createFixtureRepo();
+
+    cleanups.push(repo.cleanup);
+    await repo.commit("Initial commit", { "README.md": "hello" });
+
+    await expect(
+      detectDefaultBranch(repo.dir, "unused-token"),
+    ).resolves.toBe("main");
+  });
 });
 
 describe("fetchRef and readCommitMessage", () => {

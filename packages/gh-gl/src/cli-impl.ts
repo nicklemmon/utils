@@ -1,0 +1,147 @@
+#!/usr/bin/env node
+import { Command, CommanderError } from "commander";
+import { z } from "zod";
+
+import { validateTokens } from "./env.js";
+import { exitCodeForOutcome, formatOutcome } from "./output.js";
+import { sync } from "./sync.js";
+
+const SyncFlagsSchema = z.object({
+  githubUrl: z.string().min(1, "--github-url must be a git remote URL"),
+  gitlabUrl: z.string().min(1, "--gitlab-url must be a git remote URL"),
+  overlay: z.string().min(1, "--overlay must be a directory path"),
+  branch: z.string().min(1).optional(),
+  dryRun: z.boolean(),
+  json: z.boolean(),
+});
+
+const ErrorWithMessageSchema = z.object({ message: z.string() });
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- I/O boundary parser for a caught exception of unknown shape.
+function errorMessage(error: unknown): string {
+  const parsed = ErrorWithMessageSchema.safeParse(error);
+
+  return parsed.success ? parsed.data.message : "Unknown error";
+}
+
+/**
+ * Print `message` and exit with `gh-gl`'s real-error exit code (`2`).
+ *
+ * @param message - The error to report.
+ * @param json - Emit `message` as a JSON object instead of plain text.
+ * @returns Never — the process exits before this can return.
+ */
+function fail(message: string, json: boolean): never {
+  console.error(json ? JSON.stringify({ kind: "error", message }) : message);
+
+  return process.exit(2);
+}
+
+function formatZodIssues(
+  issues: ReadonlyArray<Readonly<{ message: string }>>,
+): string {
+  const messages: Array<string> = [];
+
+  for (const issue of issues) {
+    messages.push(issue.message);
+  }
+
+  return messages.join("\n");
+}
+
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- commander's action handler hands back its options object untyped; parsed via SyncFlagsSchema immediately below.
+async function runSyncCommand(rawFlags: unknown): Promise<void> {
+  const parsed = SyncFlagsSchema.safeParse(rawFlags);
+
+  if (!parsed.success) {
+    fail(formatZodIssues(parsed.error.issues), false);
+
+    return;
+  }
+
+  const flags = parsed.data;
+  const githubToken = process.env["GITHUB_TOKEN"];
+  const gitlabToken = process.env["GITLAB_TOKEN"];
+  const tokenErrors = validateTokens({
+    githubUrl: flags.githubUrl,
+    gitlabUrl: flags.gitlabUrl,
+    githubToken,
+    gitlabToken,
+  });
+
+  if (tokenErrors.length > 0) {
+    fail(tokenErrors.join("\n"), flags.json);
+
+    return;
+  }
+
+  try {
+    const outcome = await sync({
+      githubUrl: flags.githubUrl,
+      gitlabUrl: flags.gitlabUrl,
+      overlayDir: flags.overlay,
+      branch: flags.branch,
+      dryRun: flags.dryRun,
+      githubToken,
+      gitlabToken,
+    });
+
+    console.log(formatOutcome(outcome, { json: flags.json }));
+    process.exit(exitCodeForOutcome(outcome));
+  } catch (error) {
+    fail(errorMessage(error), flags.json);
+  }
+}
+
+const program = new Command();
+
+program
+  .name("gh-gl")
+  .description(
+    "Sync a GitHub repo's default branch into a downstream GitLab repo",
+  )
+  .exitOverride();
+
+program
+  .command("sync")
+  .requiredOption(
+    "--github-url <url>",
+    "Full git remote URL for the source repo",
+  )
+  .requiredOption(
+    "--gitlab-url <url>",
+    "Full git remote URL for the target repo",
+  )
+  .requiredOption(
+    "--overlay <path>",
+    "Local directory to layer on top of GitHub's tree",
+  )
+  .option(
+    "--branch <name>",
+    "Target branch (defaults to GitLab's default branch)",
+  )
+  .option(
+    "--dry-run",
+    "Run the full logic, skip the final commit/push",
+    false,
+  )
+  .option(
+    "--json",
+    "Emit one JSON object to stdout instead of human-readable text",
+    false,
+  )
+  .action(runSyncCommand);
+
+try {
+  await program.parseAsync(process.argv);
+} catch (error) {
+  if (
+    error instanceof CommanderError &&
+    (error.code === "commander.helpDisplayed" ||
+      error.code === "commander.version")
+  ) {
+    process.exit(error.exitCode);
+  }
+
+  fail(errorMessage(error), false);
+}
