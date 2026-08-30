@@ -4,38 +4,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { SyncOutcome } from "./output.js";
-
+import { checkoutBranch, fetchRef, initScratchRepo, mergeRef, pushBranch } from "./git.js";
 import { sync } from "./sync.js";
 import { createBareFixtureRepo, createFixtureRepo } from "./test-support/fixture-repo.js";
-
-/**
- * Reduce a `sync()` call's settlement to a single label, so the concurrent race test can assert on
- * plain strings instead of typed result objects (dodging a
- * `PromiseSettledResult`/readonly-parameter lint conflict that has nothing to do with the behavior
- * under test).
- */
-async function settleSyncLabel(promise: Readonly<Promise<SyncOutcome>>): Promise<string> {
-  try {
-    const outcome = await promise;
-
-    return outcome.kind;
-  } catch {
-    return "rejected";
-  }
-}
-
-function countLabel(labels: ReadonlyArray<string>, label: string): number {
-  let count = 0;
-
-  for (const current of labels) {
-    if (current === label) {
-      count += 1;
-    }
-  }
-
-  return count;
-}
 
 describe("sync", () => {
   const cleanups: Array<() => void> = [];
@@ -363,29 +334,44 @@ describe("sync", () => {
 
     const beforeSha = (await execa("git", ["-C", workDir, "rev-parse", "prototype"])).stdout;
 
-    const labels = await Promise.all([
-      settleSyncLabel(
-        sync({
-          githubUrl: github.dir,
-          gitlabUrl: gitlab.dir,
-          overlayDir,
-          branch: "prototype",
-          dryRun: false,
-        }),
-      ),
-      settleSyncLabel(
-        sync({
-          githubUrl: github.dir,
-          gitlabUrl: gitlab.dir,
-          overlayDir,
-          branch: "prototype",
-          dryRun: false,
-        }),
-      ),
-    ]);
+    // Simulate two racers with the same git primitives `runMerge` uses internally, instead of two
+    // concurrent `sync()` calls racing for real. Two real concurrent processes computing the exact
+    // same merge (same parents, same tree, same message) can land in the same wall-clock second and
+    // produce a byte-identical commit, since git's commit timestamps only have one-second
+    // resolution — the "loser" would then push that same sha as a harmless no-op instead of hitting
+    // the non-fast-forward rejection this test exists to verify. Both racers still fetch and merge
+    // from the same stale `prototype` tip (before either has pushed), so this is the same race; only
+    // the wall-clock gap between the two merge commits is now guaranteed instead of left to chance.
+    async function computeRacerMerge(): Promise<string> {
+      const scratchDir = mkdtempSync(path.join(tmpdir(), "gh-gl-racer-"));
 
-    expect(countLabel(labels, "merged")).toBe(1);
-    expect(countLabel(labels, "rejected")).toBe(1);
+      cleanups.push(() => {
+        rmSync(scratchDir, { recursive: true, force: true });
+      });
+      await initScratchRepo(scratchDir);
+      await fetchRef(scratchDir, gitlab.dir, "prototype", {
+        localRef: "refs/heads/prototype",
+      });
+      await checkoutBranch(scratchDir, "prototype");
+      await fetchRef(scratchDir, gitlab.dir, "main");
+
+      const result = await mergeRef(scratchDir, "FETCH_HEAD");
+
+      expect(result.kind).toBe("clean");
+
+      return scratchDir;
+    }
+
+    const racerA = await computeRacerMerge();
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 1100);
+    });
+
+    const racerB = await computeRacerMerge();
+
+    expect(await pushBranch(racerA, gitlab.dir, "prototype")).toBe(true);
+    expect(await pushBranch(racerB, gitlab.dir, "prototype")).toBe(false);
 
     const { stdout: remoteSha } = await execa("git", [
       "--git-dir",
