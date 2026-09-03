@@ -55,7 +55,7 @@ function formatOutcomeAsText(outcome: Readonly<SyncOutcome>): string {
         "To finish this locally:",
         `  git fetch ${outcome.gitlabUrl} ${outcome.gitlabDefaultBranch}`,
         `  git checkout ${outcome.branch}`,
-        "  git merge FETCH_HEAD",
+        "  git merge --no-ff FETCH_HEAD",
         "  # resolve the conflicting files listed above, then:",
         `  git push ${outcome.gitlabUrl} ${outcome.branch}`,
       ].join("\n");

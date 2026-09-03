@@ -125,7 +125,7 @@ describe("formatOutcome", () => {
         "To finish this locally:",
         "  git fetch https://gitlab.example.com/org/repo.git main",
         "  git checkout feature",
-        "  git merge FETCH_HEAD",
+        "  git merge --no-ff FETCH_HEAD",
         "  # resolve the conflicting files listed above, then:",
         "  git push https://gitlab.example.com/org/repo.git feature",
       ].join("\n"),
