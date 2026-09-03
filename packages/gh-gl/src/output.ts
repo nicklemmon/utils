@@ -50,8 +50,11 @@ function formatOutcomeAsText(outcome: Readonly<SyncOutcome>): string {
         `${outcome.branch} has a merge conflict and needs a human:`,
         ...outcome.conflictingFiles.map((file) => `  ${file}`),
       ].join("\n");
-    default:
-      return outcome;
+    default: {
+      const exhaustive: never = outcome;
+
+      throw new Error(`Unhandled sync outcome kind: ${JSON.stringify(exhaustive)}`);
+    }
   }
 }
 

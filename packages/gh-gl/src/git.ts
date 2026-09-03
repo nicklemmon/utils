@@ -2,22 +2,26 @@ import { execa } from "execa";
 import path from "node:path";
 import { z } from "zod";
 
-import type { Askpass } from "./askpass.js";
-
-import { createAskpass } from "./askpass.js";
+import type { AskpassEnv } from "./askpass.js";
 
 /**
- * Build the env overrides for an `execa` git call against a remote, when that remote is
- * authenticated over HTTPS. SSH remotes authenticate via the ambient SSH agent instead and need no
- * token, so `token` is `undefined` for them and this returns `undefined` — the git call runs with
- * no extra env.
+ * Build the execa options for a git call against a remote, merging in an already-created
+ * `GIT_ASKPASS` helper's env (for an HTTPS remote) and any `extraEnv`, when either is given.
  *
- * @param token - The HTTPS credential for this remote, or `undefined` for an SSH remote (or an
- *   HTTPS remote with no token, which will simply fail auth as git normally would).
- * @returns An `Askpass` to pass as `execa`'s `env` option, or `undefined`.
+ * @param askpassEnv - The env vars from a live `GIT_ASKPASS` helper (see {@link createAskpass}), or
+ *   `undefined` for an SSH remote (or an HTTPS remote with no token, which will simply fail auth as
+ *   git normally would). Callers create and clean up this helper once per token per sync run, not
+ *   per git call — see `sync.ts`.
+ * @param extraEnv - Additional env vars to set on the git subprocess, regardless of `askpassEnv`.
+ * @returns The `env` option to pass to `execa`, or `{}` when there's nothing to add.
  */
-function askpassFor(token: string | undefined): Askpass | undefined {
-  return token === undefined ? undefined : createAskpass(token);
+function gitEnvOptions(
+  askpassEnv: AskpassEnv | undefined,
+  extraEnv?: Readonly<Record<string, string>>,
+): Readonly<{ env?: Readonly<Record<string, string>> }> {
+  return askpassEnv === undefined && extraEnv === undefined
+    ? {}
+    : { env: Object.assign({}, extraEnv, askpassEnv) };
 }
 
 /**
@@ -25,30 +29,23 @@ function askpassFor(token: string | undefined): Askpass | undefined {
  * implement their own "default branch" setting.
  *
  * @param remoteUrl - A full git remote URL (or local path, for tests).
- * @param token - The HTTPS credential for `remoteUrl`, or `undefined` for an SSH remote.
+ * @param askpassEnv - The env vars from a live `GIT_ASKPASS` helper authenticating `remoteUrl`, or
+ *   `undefined` for an SSH remote.
  * @returns The branch name, or `undefined` if `HEAD` doesn't resolve (e.g. an empty repository with
  *   no commits).
  */
 export async function detectDefaultBranch(
   remoteUrl: string,
-  token?: string,
+  askpassEnv?: AskpassEnv,
 ): Promise<string | undefined> {
-  const askpass = askpassFor(token);
+  const { stdout } = await execa(
+    "git",
+    ["ls-remote", "--symref", "--end-of-options", remoteUrl, "HEAD"],
+    gitEnvOptions(askpassEnv),
+  );
+  const match = /^ref: refs\/heads\/(.+)\tHEAD$/mu.exec(stdout);
 
-  try {
-    const { stdout } = await execa(
-      "git",
-      ["ls-remote", "--symref", remoteUrl, "HEAD"],
-      askpass === undefined ? {} : { env: askpass.env },
-    );
-    const match = /^ref: refs\/heads\/(.+)\tHEAD$/mu.exec(stdout);
-
-    return match === null ? undefined : match[1];
-  } finally {
-    if (askpass !== undefined) {
-      askpass.cleanup();
-    }
-  }
+  return match === null ? undefined : match[1];
 }
 
 /**
@@ -80,7 +77,8 @@ export async function initScratchRepo(dir: string): Promise<void> {
  *   fetches only `ref`'s tip commit (no history) — safe for the rebuild path, which only reads tree
  *   content, but wrong for the merge path: two independently shallow-fetched branches look like
  *   unrelated histories to git, and `git merge` refuses them outright. Defaults to a full fetch.
- *   `token` is the HTTPS credential for `remoteUrl`, or `undefined` for an SSH remote.
+ *   `askpassEnv` is the env vars from a live `GIT_ASKPASS` helper authenticating `remoteUrl`, or
+ *   `undefined` for an SSH remote.
  */
 export async function fetchRef(
   dir: string,
@@ -89,26 +87,19 @@ export async function fetchRef(
   options?: Readonly<{
     localRef?: string;
     shallow?: boolean;
-    token?: string | undefined;
+    askpassEnv?: AskpassEnv | undefined;
   }>,
 ): Promise<void> {
   const localRef = options === undefined ? undefined : options.localRef;
   const shallow = options === undefined ? false : options.shallow === true;
   const refspec = localRef === undefined ? ref : `${ref}:${localRef}`;
   const depthArgs = shallow ? ["--depth=1"] : [];
-  const askpass = askpassFor(options === undefined ? undefined : options.token);
 
-  try {
-    await execa(
-      "git",
-      ["-C", dir, "fetch", ...depthArgs, remoteUrl, refspec],
-      askpass === undefined ? {} : { env: askpass.env },
-    );
-  } finally {
-    if (askpass !== undefined) {
-      askpass.cleanup();
-    }
-  }
+  await execa(
+    "git",
+    ["-C", dir, "fetch", ...depthArgs, "--end-of-options", remoteUrl, refspec],
+    gitEnvOptions(options === undefined ? undefined : options.askpassEnv),
+  );
 }
 
 /**
@@ -177,7 +168,8 @@ function isRejectedPush(error: unknown): boolean {
  * @param dir - A scratch repo previously created with {@link initScratchRepo}.
  * @param remoteUrl - A full git remote URL (or local path, for tests).
  * @param branch - The branch name, same on both the local repo and the remote.
- * @param token - The HTTPS credential for `remoteUrl`, or `undefined` for an SSH remote.
+ * @param askpassEnv - The env vars from a live `GIT_ASKPASS` helper authenticating `remoteUrl`, or
+ *   `undefined` for an SSH remote.
  * @returns `true` on a successful push, `false` when the remote rejected it as non-fast-forward
  *   (e.g. a concurrent sync run won the race). Any other failure is thrown.
  */
@@ -185,15 +177,15 @@ export async function pushBranch(
   dir: string,
   remoteUrl: string,
   branch: string,
-  token?: string,
+  askpassEnv?: AskpassEnv,
 ): Promise<boolean> {
-  const askpass = askpassFor(token);
-
   try {
     await execa(
       "git",
-      ["-C", dir, "push", remoteUrl, `${branch}:${branch}`],
-      askpass === undefined ? {} : { env: askpass.env },
+      ["-C", dir, "push", "--end-of-options", remoteUrl, `${branch}:${branch}`],
+      // Force English output so isRejectedPush's stderr matching doesn't depend on the caller's
+      // locale (git translates its messages under LANG/LC_ALL).
+      gitEnvOptions(askpassEnv, { LC_ALL: "C" }),
     );
 
     return true;
@@ -203,10 +195,6 @@ export async function pushBranch(
     }
 
     throw error;
-  } finally {
-    if (askpass !== undefined) {
-      askpass.cleanup();
-    }
   }
 }
 
@@ -219,7 +207,7 @@ export async function pushBranch(
  * @param branch - The branch to check out.
  */
 export async function checkoutBranch(dir: string, branch: string): Promise<void> {
-  await execa("git", ["-C", dir, "checkout", branch]);
+  await execa("git", ["-C", dir, "checkout", "--end-of-options", branch]);
 }
 
 /** The result of attempting a merge: clean, or blocked on real conflicts. */

@@ -2,9 +2,12 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+/** The env vars a live `GIT_ASKPASS` helper needs set on the git subprocess. */
+export type AskpassEnv = Readonly<{ GIT_ASKPASS: string; GIT_ASKPASS_TOKEN: string }>;
+
 /** A live `GIT_ASKPASS` helper: env vars to set, and a cleanup to remove it. */
 export type Askpass = {
-  env: Readonly<{ GIT_ASKPASS: string; GIT_ASKPASS_TOKEN: string }>;
+  env: AskpassEnv;
   cleanup: () => void;
 };
 

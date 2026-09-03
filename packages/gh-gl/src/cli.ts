@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execa } from "execa";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
@@ -13,33 +13,22 @@ const VarlockPackageJsonSchema = z.object({
 /**
  * Find the installed `varlock` package's own directory. `varlock`'s `package.json` doesn't expose a
  * `./package.json` export subpath, so it can't be resolved directly — instead, resolve its main
- * entry point (which _is_ exported) and walk up to the nearest `package.json` named `varlock`.
+ * entry point (which _is_ exported) and locate the enclosing `node_modules/varlock` directory. This
+ * doesn't depend on the entry point living next to `package.json` on disk (unlike walking up parent
+ * directories looking for one), only on the standard `node_modules/<package>/...` install layout.
  *
  * @returns The absolute path to varlock's package directory.
  */
 function resolveVarlockPackageDir(): string {
-  let dir = path.dirname(fileURLToPath(import.meta.resolve("varlock")));
+  const entryPath = fileURLToPath(import.meta.resolve("varlock"));
+  const marker = `${path.sep}node_modules${path.sep}varlock${path.sep}`;
+  const markerIndex = entryPath.lastIndexOf(marker);
 
-  for (;;) {
-    const candidate = path.join(dir, "package.json");
-
-    if (existsSync(candidate)) {
-      const packageJson: unknown = JSON.parse(readFileSync(candidate, "utf8"));
-      const parsed = VarlockPackageJsonSchema.safeParse(packageJson);
-
-      if (parsed.success && parsed.data.name === "varlock") {
-        return dir;
-      }
-    }
-
-    const parent = path.dirname(dir);
-
-    if (parent === dir) {
-      throw new Error("Could not locate the installed varlock package");
-    }
-
-    dir = parent;
+  if (markerIndex === -1) {
+    throw new Error("Could not locate the installed varlock package");
   }
+
+  return entryPath.slice(0, markerIndex + marker.length - 1);
 }
 
 /**

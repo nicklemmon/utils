@@ -4,7 +4,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { checkoutBranch, fetchRef, initScratchRepo, mergeRef, pushBranch } from "./git.js";
+import {
+  checkoutBranch,
+  commitAll,
+  extractTree,
+  fetchRef,
+  initScratchRepo,
+  mergeRef,
+  pushBranch,
+  setSymbolicHead,
+} from "./git.js";
 import { sync } from "./sync.js";
 import { createBareFixtureRepo, createFixtureRepo } from "./test-support/fixture-repo.js";
 
@@ -173,7 +182,7 @@ describe("sync", () => {
     expect(tipSha).toBe(seedSha);
   });
 
-  it("retries once after a concurrent push wins the race, converging to a consistent result", async () => {
+  it("rejects a racing rebuild push instead of treating an identical commit as already up to date", async () => {
     const github = await createFixtureRepo();
 
     cleanups.push(github.cleanup);
@@ -183,19 +192,40 @@ describe("sync", () => {
 
     cleanups.push(gitlab.cleanup);
 
-    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
+    // Two concurrent `sync()` calls against the same stale parent compute the exact same
+    // parent, tree, and message — the realistic scenario this guards against. Git commit
+    // timestamps only have one-second resolution, so two racers built back to back can land
+    // in the same wall-clock second and produce a byte-identical commit; the "loser" would
+    // then push that same sha as a harmless no-op instead of hitting the non-fast-forward
+    // rejection this test exists to verify. Building the racers directly with the same git
+    // primitives `attemptRebuild` uses internally, with a guaranteed wall-clock gap between
+    // them, makes that collision impossible instead of leaving it to chance.
+    async function computeRacerRebuild(): Promise<string> {
+      const scratchDir = mkdtempSync(path.join(tmpdir(), "gh-gl-racer-"));
 
-    cleanups.push(() => {
-      rmSync(overlayDir, { recursive: true, force: true });
+      cleanups.push(() => {
+        rmSync(scratchDir, { recursive: true, force: true });
+      });
+      await initScratchRepo(scratchDir);
+      await fetchRef(scratchDir, gitlab.dir, "main", { localRef: "refs/heads/main" });
+      await fetchRef(scratchDir, github.dir, "main", { shallow: true });
+      await setSymbolicHead(scratchDir, "refs/heads/main");
+      await extractTree(scratchDir, "FETCH_HEAD", scratchDir);
+      await commitAll(scratchDir, "Sync GitHub into GitLab\n");
+
+      return scratchDir;
+    }
+
+    const racerA = await computeRacerRebuild();
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 1100);
     });
-    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
 
-    const [first, second] = await Promise.all([
-      sync({ githubUrl: github.dir, gitlabUrl: gitlab.dir, overlayDir, dryRun: false }),
-      sync({ githubUrl: github.dir, gitlabUrl: gitlab.dir, overlayDir, dryRun: false }),
-    ]);
+    const racerB = await computeRacerRebuild();
 
-    expect(new Set([first.kind, second.kind])).toEqual(new Set(["no-op", "rebuilt"]));
+    expect(await pushBranch(racerA, gitlab.dir, "main")).toBe(true);
+    expect(await pushBranch(racerB, gitlab.dir, "main")).toBe(false);
   });
 
   it("merges the default branch cleanly into a prototype branch", async () => {
