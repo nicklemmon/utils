@@ -69,18 +69,40 @@ git commit --allow-empty -m "Initial commit"
 git push origin main
 ```
 
+## Overlay directory
+
+`--overlay` points at a local directory of GitLab-only files, usually a
+`.gitlab-ci.yml` plus anything it needs. `gh-gl` copies these files onto
+GitHub's tree as-is, on top of a rebuild — it does not validate their
+content. An invalid `.gitlab-ci.yml` still gets copied and pushed; GitLab
+only reports the problem when it tries to run a pipeline against it.
+
+A `.gitlab-ci.yml` needs at least one runnable job, not just `stages`:
+
+```yaml
+stages: [build]
+
+build:
+  stage: build
+  script:
+    - echo "Add your real build steps here"
+```
+
+A file with only `stages: [build]` and no job fails every pipeline with
+`jobs config should contain at least one visible job`.
+
 ## Command reference
 
 `gh-gl` has one command: `sync`.
 
-| Flag                 | Required | What it does                                                      |
-| -------------------- | -------- | ----------------------------------------------------------------- |
-| `--github-url <url>` | Yes      | The GitHub repo's git remote URL.                                 |
-| `--gitlab-url <url>` | Yes      | The GitLab repo's git remote URL.                                 |
-| `--overlay <path>`   | Yes      | A local folder with GitLab-only files to add.                     |
-| `--branch <name>`    | No       | The branch to sync. Defaults to the GitLab repo's default branch. |
-| `--dry-run`          | No       | Show what would happen. Do not push any changes.                  |
-| `--json`             | No       | Print the result as one line of JSON, instead of plain text.      |
+| Flag                 | Required | What it does                                                             |
+| -------------------- | -------- | ------------------------------------------------------------------------ |
+| `--github-url <url>` | Yes      | The GitHub repo's git remote URL.                                        |
+| `--gitlab-url <url>` | Yes      | The GitLab repo's git remote URL.                                        |
+| `--overlay <path>`   | Yes      | A local folder with GitLab-only files to add. See **Overlay directory**. |
+| `--branch <name>`    | No       | The branch to sync. Defaults to the GitLab repo's default branch.        |
+| `--dry-run`          | No       | Show what would happen. Do not push any changes.                         |
+| `--json`             | No       | Print the result as one line of JSON, instead of plain text.             |
 
 Use a full git URL for `--github-url` and `--gitlab-url`. Do not use the
 short `owner/repo` form. `gh-gl` supports both `https://` and `ssh://` URLs.
