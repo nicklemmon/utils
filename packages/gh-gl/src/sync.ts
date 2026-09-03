@@ -10,6 +10,7 @@ import {
   abortMergeConflict,
   checkoutBranch,
   commitAll,
+  commitEmpty,
   detectDefaultBranch,
   extractTree,
   fetchRef,
@@ -61,6 +62,60 @@ async function createScratchRepo(): Promise<ScratchRepo> {
       rmSync(dir, { recursive: true, force: true });
     },
   };
+}
+
+/**
+ * Bootstrap an empty GitLab repo's default branch by pushing an empty commit to it, named after
+ * GitHub's default branch. `detectDefaultBranch` can't resolve a branch name for a repo with zero
+ * commits — there's nothing for `HEAD` to point at — so this is required before any sync can
+ * proceed against a brand-new GitLab repo. Only GitLab gets this treatment: GitHub is the source of
+ * truth, and there's nothing to sync from an empty one.
+ *
+ * @param options - The sync inputs.
+ * @param githubDefaultBranch - GitHub's default branch name; also the name of the branch created on
+ *   GitLab.
+ * @param gitlabAskpassEnv - The live `GIT_ASKPASS` env for the GitLab remote, or `undefined` for
+ *   SSH.
+ * @returns The name of GitLab's now-resolvable default branch. Usually `githubDefaultBranch`, but a
+ *   concurrent bootstrap racing this one may have already created a different one.
+ */
+async function bootstrapGitlabDefaultBranch(
+  options: Readonly<SyncOptions>,
+  githubDefaultBranch: string,
+  gitlabAskpassEnv: AskpassEnv | undefined,
+): Promise<string> {
+  const scratch = await createScratchRepo();
+
+  try {
+    await setSymbolicHead(scratch.dir, `refs/heads/${githubDefaultBranch}`);
+    await commitEmpty(scratch.dir, "Bootstrap commit created by gh-gl");
+
+    const pushed = await pushBranch(
+      scratch.dir,
+      options.gitlabUrl,
+      githubDefaultBranch,
+      gitlabAskpassEnv,
+    );
+
+    if (pushed) {
+      return githubDefaultBranch;
+    }
+
+    // A concurrent bootstrap (another sync run, or someone pushing by hand) won the race. That's
+    // fine — re-detect and proceed with whatever is actually there now, rather than treating a
+    // benign race as a hard failure.
+    const redetected = await detectDefaultBranch(options.gitlabUrl, gitlabAskpassEnv);
+
+    if (redetected === undefined) {
+      throw new Error(
+        `Could not bootstrap the GitLab repo's default branch: pushing an initial commit to "${githubDefaultBranch}" was rejected, and the repo still has no resolvable default branch.`,
+      );
+    }
+
+    return redetected;
+  } finally {
+    scratch.cleanup();
+  }
 }
 
 type RebuildAttempt = SyncOutcome | { kind: "push-rejected" };
@@ -260,15 +315,19 @@ export async function sync(options: Readonly<SyncOptions>): Promise<SyncOutcome>
       detectDefaultBranch(options.gitlabUrl, askpass.gitlab),
     ]);
 
-    if (githubDefaultBranch === undefined || gitlabDefaultBranch === undefined) {
+    if (githubDefaultBranch === undefined) {
       throw new Error(
-        "Could not detect a default branch. The GitLab repo must have a commit on its default branch before the first sync.",
+        "Could not detect a default branch. The GitHub repo must have a commit on its default branch.",
       );
     }
 
-    const branch = options.branch ?? gitlabDefaultBranch;
+    const resolvedGitlabDefaultBranch =
+      gitlabDefaultBranch ??
+      (await bootstrapGitlabDefaultBranch(options, githubDefaultBranch, askpass.gitlab));
 
-    if (branch === gitlabDefaultBranch) {
+    const branch = options.branch ?? resolvedGitlabDefaultBranch;
+
+    if (branch === resolvedGitlabDefaultBranch) {
       return await runRebuild(options, branch, githubDefaultBranch, askpass);
     }
 
@@ -277,7 +336,7 @@ export async function sync(options: Readonly<SyncOptions>): Promise<SyncOutcome>
     try {
       return await runMerge(scratch.dir, options, {
         branch,
-        gitlabDefaultBranch,
+        gitlabDefaultBranch: resolvedGitlabDefaultBranch,
         gitlabAskpassEnv: askpass.gitlab,
       });
     } finally {

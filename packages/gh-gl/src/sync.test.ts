@@ -5,7 +5,11 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { sync } from "./sync.js";
-import { createBareFixtureRepo, createFixtureRepo } from "./test-support/fixture-repo.js";
+import {
+  createBareFixtureRepo,
+  createEmptyBareFixtureRepo,
+  createFixtureRepo,
+} from "./test-support/fixture-repo.js";
 
 /**
  * Install a `pre-receive` hook on a bare repo that declines every push, so a push to it fails the
@@ -29,6 +33,104 @@ describe("sync", () => {
     }
   });
 
+  it("bootstraps an empty GitLab repo's default branch from GitHub's, then rebuilds it", async () => {
+    const github = await createFixtureRepo();
+
+    cleanups.push(github.cleanup);
+    await github.commit("Initial commit", { "README.md": "hello" });
+
+    const gitlab = await createEmptyBareFixtureRepo();
+
+    cleanups.push(gitlab.cleanup);
+
+    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
+
+    cleanups.push(() => {
+      rmSync(overlayDir, { recursive: true, force: true });
+    });
+    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
+
+    const result = await sync({
+      githubUrl: github.dir,
+      gitlabUrl: gitlab.dir,
+      overlayDir,
+      dryRun: false,
+    });
+
+    expect(result).toMatchObject({ kind: "rebuilt", branch: "main" });
+
+    const { stdout: symref } = await execa("git", ["ls-remote", "--symref", gitlab.dir, "HEAD"]);
+
+    expect(symref).toMatch(/^ref: refs\/heads\/main\tHEAD$/mu);
+
+    const { stdout: readme } = await execa("git", [
+      "--git-dir",
+      gitlab.dir,
+      "show",
+      "main:README.md",
+    ]);
+
+    expect(readme).toBe("hello");
+  });
+
+  it("throws a clear error when the bootstrap push is rejected and no default branch turns up", async () => {
+    const github = await createFixtureRepo();
+
+    cleanups.push(github.cleanup);
+    await github.commit("Initial commit", { "README.md": "hello" });
+
+    const gitlab = await createEmptyBareFixtureRepo();
+
+    cleanups.push(gitlab.cleanup);
+    // Every push to the remote fails the same way a concurrent writer winning the race
+    // would — but here nothing else establishes a default branch either, so
+    // bootstrapGitlabDefaultBranch's re-detect comes back empty too, and this must
+    // surface as a real, clearly-worded error instead of a confusing generic one.
+    installRejectingPreReceiveHook(gitlab.dir);
+
+    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
+
+    cleanups.push(() => {
+      rmSync(overlayDir, { recursive: true, force: true });
+    });
+    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
+
+    await expect(
+      sync({
+        githubUrl: github.dir,
+        gitlabUrl: gitlab.dir,
+        overlayDir,
+        dryRun: false,
+      }),
+    ).rejects.toThrow(/Could not bootstrap the GitLab repo's default branch/u);
+  });
+
+  it("still fails when GitHub itself has no default branch, even if GitLab is also empty", async () => {
+    const github = await createEmptyBareFixtureRepo();
+
+    cleanups.push(github.cleanup);
+
+    const gitlab = await createEmptyBareFixtureRepo();
+
+    cleanups.push(gitlab.cleanup);
+
+    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
+
+    cleanups.push(() => {
+      rmSync(overlayDir, { recursive: true, force: true });
+    });
+    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
+
+    await expect(
+      sync({
+        githubUrl: github.dir,
+        gitlabUrl: gitlab.dir,
+        overlayDir,
+        dryRun: false,
+      }),
+    ).rejects.toThrow(/Could not detect a default branch/u);
+  });
+
   it("is a no-op when nothing has changed since the last sync", async () => {
     const github = await createFixtureRepo();
 
@@ -38,8 +140,8 @@ describe("sync", () => {
     const gitlab = await createFixtureRepo();
 
     cleanups.push(gitlab.cleanup);
-    // Precondition: the GitLab repo must already have a commit on its
-    // default branch before the first sync (see PLAN.md).
+    // Seeded here (rather than left empty) so this test exercises a plain rebuild, not
+    // gh-gl's bootstrap path — that has its own dedicated tests above.
     await gitlab.commit("Seed commit", { ".gitkeep": "" });
 
     const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));

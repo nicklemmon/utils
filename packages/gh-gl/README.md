@@ -61,13 +61,12 @@ a dry run.
 
 ### Before your first sync
 
-The GitLab repo must already have one commit on its default branch. Seed it
-with an empty commit if needed:
+If the GitLab repo is brand new (no commits at all), `gh-gl` bootstraps it
+for you: it pushes an empty commit to a branch named after GitHub's default
+branch, then rebuilds it normally. No manual setup step is needed.
 
-```sh
-git commit --allow-empty -m "Initial commit"
-git push origin main
-```
+`gh-gl` only bootstraps GitLab this way. GitHub must already have a commit on
+its default branch — there's nothing to sync from an empty GitHub repo.
 
 ## Overlay directory
 
@@ -160,8 +159,9 @@ console.log(outcome.kind); // "no-op", "rebuilt", "merged", or "conflict"
 
 - `gh-gl` syncs one branch per run. To sync many prototype branches, run
   `gh-gl` once for each branch.
-- `gh-gl` does not create the first commit on an empty GitLab repo. Seed the
-  repo yourself first (see **Before your first sync** above).
+- `gh-gl` does not create the first commit on an empty GitHub repo. GitHub
+  must already have content to sync from (see **Before your first sync**
+  above).
 - `gh-gl` does not deploy to GitLab Pages. Configure that through your
   overlay's `.gitlab-ci.yml` file instead.
 

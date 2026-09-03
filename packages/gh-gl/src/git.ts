@@ -151,6 +151,18 @@ export async function commitAll(dir: string, message: string): Promise<void> {
   await execa("git", ["-C", dir, "commit", "-m", message]);
 }
 
+/**
+ * Create an empty commit (no file changes) in the scratch repo at `dir`. Used to bootstrap a branch
+ * that doesn't exist yet, e.g. an empty GitLab repo's default branch — see
+ * {@link setSymbolicHead}.
+ *
+ * @param dir - A scratch repo previously created with {@link initScratchRepo}.
+ * @param message - The commit message.
+ */
+export async function commitEmpty(dir: string, message: string): Promise<void> {
+  await execa("git", ["-C", dir, "commit", "--allow-empty", "-m", message]);
+}
+
 const ExecaFailureSchema = z.object({ stderr: z.string() });
 const REJECTED_PUSH_PATTERN =
   /\[rejected\]|\[remote rejected\]|\(fetch first\)|\(non-fast-forward\)|\(failed to update ref\)|Up-to-date check failed/u;

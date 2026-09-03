@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createAskpass } from "./askpass.js";
 import {
   commitAll,
+  commitEmpty,
   detectDefaultBranch,
   extractTree,
   fetchRef,
@@ -231,6 +232,41 @@ describe("commitAll", () => {
     await commitAll(scratchDir, "Sync GitHub into GitLab");
 
     await expect(readCommitMessage(scratchDir, "HEAD")).resolves.toBe("Sync GitHub into GitLab\n");
+  });
+});
+
+describe("commitEmpty", () => {
+  const cleanups: Array<() => void> = [];
+
+  afterEach(() => {
+    for (const cleanup of cleanups.splice(0)) {
+      cleanup();
+    }
+  });
+
+  it("creates a commit with no file changes and the given message", async () => {
+    const scratchDir = mkdtempSync(path.join(tmpdir(), "gh-gl-scratch-"));
+
+    cleanups.push(() => {
+      rmSync(scratchDir, { recursive: true, force: true });
+    });
+    await initScratchRepo(scratchDir);
+    await commitEmpty(scratchDir, "Bootstrap commit created by gh-gl");
+
+    await expect(readCommitMessage(scratchDir, "HEAD")).resolves.toBe(
+      "Bootstrap commit created by gh-gl\n",
+    );
+
+    const { stdout } = await execa("git", [
+      "-C",
+      scratchDir,
+      "show",
+      "--stat",
+      "--format=",
+      "HEAD",
+    ]);
+
+    expect(stdout).toBe("");
   });
 });
 

@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -80,6 +80,49 @@ export async function createBareFixtureRepo(
 
   await execa("git", ["clone", "--bare", "--quiet", staging.dir, dir]);
   staging.cleanup();
+
+  return {
+    dir,
+    cleanup: () => {
+      rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+/**
+ * Create a throwaway bare git repository with zero commits — a real GitHub/GitLab remote before its
+ * first-ever push, with no resolvable `HEAD`. Unlike {@link createBareFixtureRepo}, this seeds
+ * nothing at all.
+ *
+ * A real GitHub/GitLab repo automatically adopts the first branch ever pushed to it as its default
+ * branch (confirmed live: pushing to a brand-new repo over plain SSH, no API call, made `HEAD`
+ * resolve to it immediately) — that's platform behavior layered on top of git, not something plain
+ * `git init --bare` does on its own. A `pre-receive` hook here replicates it, so this fixture
+ * matches what `gh-gl` actually sees against a real empty remote.
+ *
+ * @returns The bare repo's directory and a `cleanup`.
+ */
+export async function createEmptyBareFixtureRepo(): Promise<BareFixtureRepo> {
+  const dir = mkdtempSync(path.join(tmpdir(), "gh-gl-bare-"));
+
+  await execa("git", ["init", "--bare", "--quiet", dir]);
+
+  const hookPath = path.join(dir, "hooks", "pre-receive");
+
+  writeFileSync(
+    hookPath,
+    [
+      "#!/bin/sh",
+      "# Emulate GitHub/GitLab: the first branch ever pushed becomes the default",
+      "# branch. `for-each-ref` here still reflects the pre-push state.",
+      'if [ -z "$(git for-each-ref refs/heads)" ]; then',
+      "  read -r old_sha new_sha ref_name",
+      '  git symbolic-ref HEAD "$ref_name"',
+      "fi",
+      "",
+    ].join("\n"),
+  );
+  chmodSync(hookPath, 0o755);
 
   return {
     dir,

@@ -81,12 +81,23 @@ call anywhere in the tool. This is the same underlying mechanism both platforms
 use to implement their own "default branch" setting, so it agrees with the API in
 every case that matters.
 
-**Precondition: the GitLab repo must already have a commit on its default branch
-before the first sync.** An empty repo has no resolvable `HEAD` for `ls-remote` to
-report. Bootstrapping an empty GitLab repo is explicitly out of scope for v1 — seed
-it with at least one commit (even an empty initial commit) before running `gh-gl
-sync` against it for the first time. The CLI fails with a clear error naming this
-precondition if `ls-remote` can't resolve `HEAD` on either remote.
+**GitHub must already have a commit on its default branch.** An empty repo has no
+resolvable `HEAD` for `ls-remote` to report, and there is nothing to sync from an
+empty GitHub repo regardless. The CLI fails with a clear error naming this
+precondition if `ls-remote` can't resolve `HEAD` on GitHub.
+
+**GitLab bootstraps itself if it's empty.** A real GitHub/GitLab repo adopts the
+first branch ever pushed to it as its default branch — confirmed live, pushing to
+a brand-new repo over plain SSH with no API call made `HEAD` resolve to it
+immediately — so `gh-gl` doesn't need any special-case bootstrapping logic beyond
+pushing a commit: when GitLab's `ls-remote --symref HEAD` doesn't resolve,
+`gh-gl` pushes an empty commit to a branch named after GitHub's default branch,
+then proceeds with the normal rebuild path. Only the _default_ branch gets this
+treatment — a `--branch <prototype>` target still requires that branch to already
+exist; `gh-gl` has no business inventing a prototype branch that was never
+pushed. If the bootstrap push is rejected (e.g. a concurrent sync run or a person
+bootstrapped it first), `gh-gl` re-checks `ls-remote` rather than failing outright,
+and only errors if the repo still has no resolvable default branch afterward.
 
 ## Auth
 
