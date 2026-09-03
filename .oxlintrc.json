@@ -43,6 +43,7 @@
     "max-lines-per-function": "off",
     "max-statements": "off",
     "max-params": ["error", 4],
+    "node/no-top-level-await": "off",
     "unicorn/filename-case": ["error", { "case": "kebabCase" }],
     "vitest/require-test-timeout": "off",
     "jsdoc/require-param": "error",
@@ -99,6 +100,19 @@
       "rules": {
         "import/max-dependencies": "off",
         "import/no-default-export": "off"
+      }
+    },
+    {
+      "files": ["packages/gh-gl/**/*.ts"],
+      "rules": {
+        "oxc/no-async-await": "off"
+      }
+    },
+    {
+      "files": ["packages/gh-gl/src/cli.ts", "packages/gh-gl/src/cli-impl.ts"],
+      "rules": {
+        "no-console": "off",
+        "node/no-process-env": "off"
       }
     }
   ]
