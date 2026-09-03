@@ -18,6 +18,8 @@ export type SyncOutcome =
       kind: "conflict";
       branch: string;
       conflictingFiles: ReadonlyArray<string>;
+      gitlabUrl: string;
+      gitlabDefaultBranch: string;
     };
 
 /**
@@ -49,6 +51,13 @@ function formatOutcomeAsText(outcome: Readonly<SyncOutcome>): string {
       return [
         `${outcome.branch} has a merge conflict and needs a human:`,
         ...outcome.conflictingFiles.map((file) => `  ${file}`),
+        "",
+        "To finish this locally:",
+        `  git fetch ${outcome.gitlabUrl} ${outcome.gitlabDefaultBranch}`,
+        `  git checkout ${outcome.branch}`,
+        "  git merge FETCH_HEAD",
+        "  # resolve the conflicting files listed above, then:",
+        `  git push ${outcome.gitlabUrl} ${outcome.branch}`,
       ].join("\n");
     default: {
       const exhaustive: never = outcome;

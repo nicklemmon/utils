@@ -88,4 +88,7 @@ const result = await execa(
   { stdio: "inherit", reject: false },
 );
 
-process.exit(result.exitCode ?? 1);
+// `result.exitCode` is undefined when the child process never produced a normal exit
+// (e.g. it was killed by a signal, or failed to spawn at all) — that's a real error
+// (tier 2), not the merge-conflict tier (1) that a fallback of 1 would collide with.
+process.exit(result.exitCode ?? 2);

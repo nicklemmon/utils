@@ -212,7 +212,13 @@ async function runMerge(
   if (result.kind === "conflict") {
     await abortMergeConflict(scratchDir);
 
-    return { kind: "conflict", branch, conflictingFiles: result.conflictingFiles };
+    return {
+      kind: "conflict",
+      branch,
+      conflictingFiles: result.conflictingFiles,
+      gitlabUrl: options.gitlabUrl,
+      gitlabDefaultBranch,
+    };
   }
 
   if (options.dryRun) {

@@ -1,21 +1,24 @@
 import { execa } from "execa";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  checkoutBranch,
-  commitAll,
-  extractTree,
-  fetchRef,
-  initScratchRepo,
-  mergeRef,
-  pushBranch,
-  setSymbolicHead,
-} from "./git.js";
 import { sync } from "./sync.js";
 import { createBareFixtureRepo, createFixtureRepo } from "./test-support/fixture-repo.js";
+
+/**
+ * Install a `pre-receive` hook on a bare repo that declines every push, so a push to it fails the
+ * same way a real concurrent-writer race would (git reports it as `[remote rejected]`, which
+ * `pushBranch` treats the same as a non-fast-forward rejection) — deterministically, without
+ * needing two real processes to race each other.
+ */
+function installRejectingPreReceiveHook(bareRepoDir: string): void {
+  const hookPath = path.join(bareRepoDir, "hooks", "pre-receive");
+
+  writeFileSync(hookPath, "#!/bin/sh\nexit 1\n");
+  chmodSync(hookPath, 0o755);
+}
 
 describe("sync", () => {
   const cleanups: Array<() => void> = [];
@@ -182,7 +185,7 @@ describe("sync", () => {
     expect(tipSha).toBe(seedSha);
   });
 
-  it("rejects a racing rebuild push instead of treating an identical commit as already up to date", async () => {
+  it("throws after a rebuild push is rejected twice in a row", async () => {
     const github = await createFixtureRepo();
 
     cleanups.push(github.cleanup);
@@ -191,41 +194,26 @@ describe("sync", () => {
     const gitlab = await createBareFixtureRepo({ ".gitkeep": "" });
 
     cleanups.push(gitlab.cleanup);
+    // Every push to the remote fails the same way a concurrent sync run winning the race
+    // would, deterministically forcing runRebuild's initial attempt and its one retry to
+    // both hit the non-fast-forward rejection, exercising its real double-rejection throw.
+    installRejectingPreReceiveHook(gitlab.dir);
 
-    // Two concurrent `sync()` calls against the same stale parent compute the exact same
-    // parent, tree, and message — the realistic scenario this guards against. Git commit
-    // timestamps only have one-second resolution, so two racers built back to back can land
-    // in the same wall-clock second and produce a byte-identical commit; the "loser" would
-    // then push that same sha as a harmless no-op instead of hitting the non-fast-forward
-    // rejection this test exists to verify. Building the racers directly with the same git
-    // primitives `attemptRebuild` uses internally, with a guaranteed wall-clock gap between
-    // them, makes that collision impossible instead of leaving it to chance.
-    async function computeRacerRebuild(): Promise<string> {
-      const scratchDir = mkdtempSync(path.join(tmpdir(), "gh-gl-racer-"));
+    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
 
-      cleanups.push(() => {
-        rmSync(scratchDir, { recursive: true, force: true });
-      });
-      await initScratchRepo(scratchDir);
-      await fetchRef(scratchDir, gitlab.dir, "main", { localRef: "refs/heads/main" });
-      await fetchRef(scratchDir, github.dir, "main", { shallow: true });
-      await setSymbolicHead(scratchDir, "refs/heads/main");
-      await extractTree(scratchDir, "FETCH_HEAD", scratchDir);
-      await commitAll(scratchDir, "Sync GitHub into GitLab\n");
-
-      return scratchDir;
-    }
-
-    const racerA = await computeRacerRebuild();
-
-    await new Promise((resolve) => {
-      setTimeout(resolve, 1100);
+    cleanups.push(() => {
+      rmSync(overlayDir, { recursive: true, force: true });
     });
+    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
 
-    const racerB = await computeRacerRebuild();
-
-    expect(await pushBranch(racerA, gitlab.dir, "main")).toBe(true);
-    expect(await pushBranch(racerB, gitlab.dir, "main")).toBe(false);
+    await expect(
+      sync({
+        githubUrl: github.dir,
+        gitlabUrl: gitlab.dir,
+        overlayDir,
+        dryRun: false,
+      }),
+    ).rejects.toThrow(/rejected twice in a row/u);
   });
 
   it("merges the default branch cleanly into a prototype branch", async () => {
@@ -310,7 +298,7 @@ describe("sync", () => {
     expect(afterSha).toBe(beforeSha);
   });
 
-  it("throws instead of silently reporting success when a concurrent push wins the merge race", async () => {
+  it("throws instead of silently reporting success when the merge push is rejected", async () => {
     const github = await createFixtureRepo();
 
     cleanups.push(github.cleanup);
@@ -350,10 +338,10 @@ describe("sync", () => {
     await execa("git", ["-C", workDir, "push", "origin", "prototype:prototype"]);
 
     // Advance main independently so main is not already an ancestor of
-    // prototype's tip — otherwise "merging" main into prototype has nothing
-    // new to bring in, git treats it as "Already up to date" with no new
-    // commit, and both racers would trivially "succeed" by pushing an
-    // already-current sha instead of actually racing.
+    // prototype's tip — otherwise merging main into prototype has nothing new
+    // to bring in, git treats it as "Already up to date" with no new commit,
+    // and the push that follows is a same-sha no-op that never reaches the
+    // remote's pre-receive hook at all.
     await github.commit("Second commit", { "README.md": "updated" });
     await sync({
       githubUrl: github.dir,
@@ -364,44 +352,21 @@ describe("sync", () => {
 
     const beforeSha = (await execa("git", ["-C", workDir, "rev-parse", "prototype"])).stdout;
 
-    // Simulate two racers with the same git primitives `runMerge` uses internally, instead of two
-    // concurrent `sync()` calls racing for real. Two real concurrent processes computing the exact
-    // same merge (same parents, same tree, same message) can land in the same wall-clock second and
-    // produce a byte-identical commit, since git's commit timestamps only have one-second
-    // resolution — the "loser" would then push that same sha as a harmless no-op instead of hitting
-    // the non-fast-forward rejection this test exists to verify. Both racers still fetch and merge
-    // from the same stale `prototype` tip (before either has pushed), so this is the same race; only
-    // the wall-clock gap between the two merge commits is now guaranteed instead of left to chance.
-    async function computeRacerMerge(): Promise<string> {
-      const scratchDir = mkdtempSync(path.join(tmpdir(), "gh-gl-racer-"));
+    // Every push to the remote fails the same way a concurrent writer winning the race
+    // would, deterministically forcing runMerge's push to hit the non-fast-forward
+    // rejection and exercising its real throw — unlike the rebuild path, this never
+    // retries, so one rejection must be enough to fail the whole sync() call.
+    installRejectingPreReceiveHook(gitlab.dir);
 
-      cleanups.push(() => {
-        rmSync(scratchDir, { recursive: true, force: true });
-      });
-      await initScratchRepo(scratchDir);
-      await fetchRef(scratchDir, gitlab.dir, "prototype", {
-        localRef: "refs/heads/prototype",
-      });
-      await checkoutBranch(scratchDir, "prototype");
-      await fetchRef(scratchDir, gitlab.dir, "main");
-
-      const result = await mergeRef(scratchDir, "FETCH_HEAD");
-
-      expect(result.kind).toBe("clean");
-
-      return scratchDir;
-    }
-
-    const racerA = await computeRacerMerge();
-
-    await new Promise((resolve) => {
-      setTimeout(resolve, 1100);
-    });
-
-    const racerB = await computeRacerMerge();
-
-    expect(await pushBranch(racerA, gitlab.dir, "prototype")).toBe(true);
-    expect(await pushBranch(racerB, gitlab.dir, "prototype")).toBe(false);
+    await expect(
+      sync({
+        githubUrl: github.dir,
+        gitlabUrl: gitlab.dir,
+        overlayDir,
+        branch: "prototype",
+        dryRun: false,
+      }),
+    ).rejects.toThrow(/Push to prototype was rejected/u);
 
     const { stdout: remoteSha } = await execa("git", [
       "--git-dir",
@@ -410,7 +375,7 @@ describe("sync", () => {
       "prototype",
     ]);
 
-    expect(remoteSha).not.toBe(beforeSha);
+    expect(remoteSha).toBe(beforeSha);
   });
 
   it("reports a conflict and leaves the prototype branch unpushed", async () => {
@@ -466,6 +431,8 @@ describe("sync", () => {
       kind: "conflict",
       branch: "prototype",
       conflictingFiles: ["README.md"],
+      gitlabUrl: gitlab.dir,
+      gitlabDefaultBranch: "main",
     });
 
     const afterSha = (await execa("git", ["-C", gitlab.dir, "rev-parse", "prototype"])).stdout;

@@ -25,16 +25,19 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * Print `message` and exit with `gh-gl`'s real-error exit code (`2`).
+ * Print `message` and set `gh-gl`'s real-error exit code (`2`).
+ *
+ * This sets `process.exitCode` instead of calling `process.exit()` directly: `console.error`'s
+ * write to a piped stderr is asynchronous on POSIX, so exiting immediately after it can truncate
+ * the message before it reaches the pipe. Setting `process.exitCode` lets the process exit
+ * naturally once the write (and everything else pending) has flushed.
  *
  * @param message - The error to report.
  * @param json - Emit `message` as a JSON object instead of plain text.
- * @returns Never — the process exits before this can return.
  */
-function fail(message: string, json: boolean): never {
+function fail(message: string, json: boolean): void {
   console.error(json ? JSON.stringify({ kind: "error", message }) : message);
-
-  return process.exit(2);
+  process.exitCode = 2;
 }
 
 function formatZodIssues(issues: ReadonlyArray<Readonly<{ message: string }>>): string {
@@ -85,7 +88,7 @@ async function runSyncCommand(rawFlags: unknown): Promise<void> {
     });
 
     console.log(formatOutcome(outcome, { json: flags.json }));
-    process.exit(exitCodeForOutcome(outcome));
+    process.exitCode = exitCodeForOutcome(outcome);
   } catch (error) {
     fail(errorMessage(error), flags.json);
   }
@@ -111,21 +114,21 @@ program
 try {
   await program.parseAsync(process.argv);
 } catch (error) {
+  // `process.exitCode` (not `process.exit()`) in every branch here — see `fail`'s doc
+  // comment on why.
   if (
     error instanceof CommanderError &&
     (error.code === "commander.helpDisplayed" || error.code === "commander.version")
   ) {
-    process.exit(error.exitCode);
+    process.exitCode = error.exitCode;
+  } else if (error instanceof CommanderError && error.code === "commander.help") {
+    // `commander.help`: no subcommand was given, so commander printed usage
+    // itself. That's a real usage error per gh-gl's own exit-code contract
+    // (tier 2), not commander's own default of 1 (reserved here for merge
+    // conflicts specifically) — the help text is already on stdout/stderr, so
+    // there's nothing more to print.
+    process.exitCode = 2;
+  } else {
+    fail(errorMessage(error), false);
   }
-
-  // `commander.help`: no subcommand was given, so commander printed usage
-  // itself. That's a real usage error per gh-gl's own exit-code contract
-  // (tier 2), not commander's own default of 1 (reserved here for merge
-  // conflicts specifically) — the help text is already on stdout/stderr, so
-  // there's nothing more to print.
-  if (error instanceof CommanderError && error.code === "commander.help") {
-    process.exit(2);
-  }
-
-  fail(errorMessage(error), false);
 }

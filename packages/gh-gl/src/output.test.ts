@@ -36,6 +36,8 @@ describe("exitCodeForOutcome", () => {
         kind: "conflict",
         branch: "feature",
         conflictingFiles: ["src/index.ts"],
+        gitlabUrl: "https://gitlab.example.com/org/repo.git",
+        gitlabDefaultBranch: "main",
       }),
     ).toBe(1);
   });
@@ -88,6 +90,8 @@ describe("formatOutcome", () => {
         kind: "conflict",
         branch: "feature",
         conflictingFiles: ["src/index.ts", "README.md"],
+        gitlabUrl: "https://gitlab.example.com/org/repo.git",
+        gitlabDefaultBranch: "main",
       },
       { json: true },
     );
@@ -96,6 +100,35 @@ describe("formatOutcome", () => {
       kind: "conflict",
       branch: "feature",
       conflictingFiles: ["src/index.ts", "README.md"],
+      gitlabUrl: "https://gitlab.example.com/org/repo.git",
+      gitlabDefaultBranch: "main",
     });
+  });
+
+  it("includes the fetch, merge, and push commands to finish a conflict locally", () => {
+    const text = formatOutcome(
+      {
+        kind: "conflict",
+        branch: "feature",
+        conflictingFiles: ["src/index.ts"],
+        gitlabUrl: "https://gitlab.example.com/org/repo.git",
+        gitlabDefaultBranch: "main",
+      },
+      { json: false },
+    );
+
+    expect(text).toBe(
+      [
+        "feature has a merge conflict and needs a human:",
+        "  src/index.ts",
+        "",
+        "To finish this locally:",
+        "  git fetch https://gitlab.example.com/org/repo.git main",
+        "  git checkout feature",
+        "  git merge FETCH_HEAD",
+        "  # resolve the conflicting files listed above, then:",
+        "  git push https://gitlab.example.com/org/repo.git feature",
+      ].join("\n"),
+    );
   });
 });
