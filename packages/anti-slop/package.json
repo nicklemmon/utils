@@ -15,7 +15,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@oxlint/plugins": "^1.79.0"
+    "@oxlint/plugins": "^1.80.0"
   },
   "devDependencies": {
     "@repo/typescript-config": "*",
