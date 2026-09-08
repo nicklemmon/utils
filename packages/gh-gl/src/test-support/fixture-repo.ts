@@ -94,8 +94,12 @@ export async function createBareFixtureRepo(
  * Create a throwaway bare git repository with zero commits and no resolvable `HEAD`.
  *
  * Real GitHub and GitLab remotes adopt the first pushed branch as their default. Plain `git init
- * --bare` does not. A `pre-receive` hook here copies that platform behavior so the fixture matches
+ * --bare` does not. A `post-receive` hook here copies that platform behavior so the fixture matches
  * an empty remote.
+ *
+ * The hook must be `post-receive`, not `pre-receive`. Git quarantines incoming objects during
+ * `pre-receive` and rejects ref updates from that hook. On newer git (CI runners), that rejection
+ * fails `git symbolic-ref` and the hook exits non-zero, so the whole push is declined.
  *
  * @returns The bare repo directory and a `cleanup`.
  */
@@ -104,17 +108,33 @@ export async function createEmptyBareFixtureRepo(): Promise<BareFixtureRepo> {
 
   await execa("git", ["init", "--bare", "--quiet", dir]);
 
-  const hookPath = path.join(dir, "hooks", "pre-receive");
+  const hookPath = path.join(dir, "hooks", "post-receive");
 
   writeFileSync(
     hookPath,
     [
       "#!/bin/sh",
-      "# Emulate GitHub/GitLab: the first branch ever pushed becomes the default",
-      "# branch. `for-each-ref` here still reflects the pre-push state.",
-      'if [ -z "$(git for-each-ref refs/heads)" ]; then',
-      "  read -r old_sha new_sha ref_name",
-      '  git symbolic-ref HEAD "$ref_name"',
+      "# Emulate GitHub/GitLab: the first branch ever pushed becomes the default.",
+      "# post-receive (not pre-receive): git rejects ref updates during pre-receive",
+      "# quarantine, which fails this hook and declines the push on newer git.",
+      'created=""',
+      "while read -r old_sha new_sha ref_name; do",
+      '  case "$old_sha" in',
+      "    0000000000000000000000000000000000000000)",
+      '      case "$ref_name" in',
+      '        refs/heads/*) created="$ref_name" ;;',
+      "      esac",
+      "      ;;",
+      "  esac",
+      "done",
+      'if [ -n "$created" ]; then',
+      "  count=0",
+      '  for _ in $(git for-each-ref --format="%(refname)" refs/heads); do',
+      "    count=$((count + 1))",
+      "  done",
+      '  if [ "$count" -eq 1 ]; then',
+      '    git symbolic-ref HEAD "$created"',
+      "  fi",
       "fi",
       "",
     ].join("\n"),
