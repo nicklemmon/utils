@@ -25,7 +25,8 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * Print `message` and set `gh-gl`'s real-error exit code (`2`).
+ * Print `message` and set `gh-gl`'s real-error exit code (`2`). JSON errors go to stdout so every
+ * JSON-mode result uses the documented output stream. Text errors go to stderr.
  *
  * This sets `process.exitCode` instead of calling `process.exit()` directly: `console.error`'s
  * write to a piped stderr is asynchronous on POSIX, so exiting immediately after it can truncate
@@ -36,7 +37,12 @@ function errorMessage(error: unknown): string {
  * @param json - Emit `message` as a JSON object instead of plain text.
  */
 function fail(message: string, json: boolean): void {
-  console.error(json ? JSON.stringify({ kind: "error", message }) : message);
+  if (json) {
+    console.log(JSON.stringify({ kind: "error", message }));
+  } else {
+    console.error(message);
+  }
+
   process.exitCode = 2;
 }
 
@@ -95,10 +101,20 @@ async function runSyncCommand(rawFlags: unknown): Promise<void> {
 }
 
 const program = new Command();
+const jsonRequested = process.argv.slice(2).includes("--json");
 
 program
   .name("gh-gl")
   .description("Sync a GitHub repo's default branch into a downstream GitLab repo")
+  .configureOutput({
+    writeErr: jsonRequested
+      ? (): void => {
+          // The catch block emits Commander's error as the single JSON result.
+        }
+      : (text): void => {
+          process.stderr.write(text);
+        },
+  })
   .exitOverride();
 
 program
@@ -129,6 +145,6 @@ try {
     // there's nothing more to print.
     process.exitCode = 2;
   } else {
-    fail(errorMessage(error), false);
+    fail(errorMessage(error), jsonRequested);
   }
 }

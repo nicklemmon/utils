@@ -73,6 +73,69 @@ describe("sync", () => {
     expect(readme).toBe("hello");
   });
 
+  it("previews an initial rebuild without bootstrapping an empty GitLab repo on a dry run", async () => {
+    const github = await createFixtureRepo();
+
+    cleanups.push(github.cleanup);
+    await github.commit("Initial commit", { "README.md": "hello" });
+
+    const gitlab = await createEmptyBareFixtureRepo();
+
+    cleanups.push(gitlab.cleanup);
+
+    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
+
+    cleanups.push(() => {
+      rmSync(overlayDir, { recursive: true, force: true });
+    });
+    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
+
+    const result = await sync({
+      githubUrl: github.dir,
+      gitlabUrl: gitlab.dir,
+      overlayDir,
+      dryRun: true,
+    });
+
+    expect(result).toMatchObject({ kind: "rebuilt", branch: "main", dryRun: true });
+
+    const { stdout: refs } = await execa("git", ["--git-dir", gitlab.dir, "for-each-ref"]);
+
+    expect(refs).toBe("");
+  });
+
+  it("does not bootstrap an empty GitLab repo for an explicit prototype branch", async () => {
+    const github = await createFixtureRepo();
+
+    cleanups.push(github.cleanup);
+    await github.commit("Initial commit", { "README.md": "hello" });
+
+    const gitlab = await createEmptyBareFixtureRepo();
+
+    cleanups.push(gitlab.cleanup);
+
+    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
+
+    cleanups.push(() => {
+      rmSync(overlayDir, { recursive: true, force: true });
+    });
+    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
+
+    await expect(
+      sync({
+        githubUrl: github.dir,
+        gitlabUrl: gitlab.dir,
+        overlayDir,
+        branch: "prototype",
+        dryRun: false,
+      }),
+    ).rejects.toThrow(/Cannot sync prototype branch "prototype"/u);
+
+    const { stdout: refs } = await execa("git", ["--git-dir", gitlab.dir, "for-each-ref"]);
+
+    expect(refs).toBe("");
+  });
+
   it("throws a clear error when the bootstrap push is rejected and no default branch turns up", async () => {
     const github = await createFixtureRepo();
 

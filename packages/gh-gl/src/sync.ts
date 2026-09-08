@@ -118,6 +118,34 @@ async function bootstrapGitlabDefaultBranch(
   }
 }
 
+async function previewInitialRebuild(
+  options: Readonly<SyncOptions>,
+  githubDefaultBranch: string,
+  askpass: SyncAskpass,
+): Promise<SyncOutcome> {
+  const scratch = await createScratchRepo();
+
+  try {
+    await fetchRef(scratch.dir, options.githubUrl, githubDefaultBranch, {
+      shallow: true,
+      askpassEnv: askpass.github,
+    });
+
+    const githubSha = await resolveRef(scratch.dir, "FETCH_HEAD");
+    const overlayFingerprint = await fingerprintDirectory(scratch.dir, options.overlayDir);
+
+    return {
+      kind: "rebuilt",
+      branch: githubDefaultBranch,
+      githubSha,
+      overlayFingerprint,
+      dryRun: true,
+    };
+  } finally {
+    scratch.cleanup();
+  }
+}
+
 type RebuildAttempt = SyncOutcome | { kind: "push-rejected" };
 
 async function attemptRebuild(
@@ -319,6 +347,18 @@ export async function sync(options: Readonly<SyncOptions>): Promise<SyncOutcome>
       throw new Error(
         "Could not detect a default branch. The GitHub repo must have a commit on its default branch.",
       );
+    }
+
+    if (gitlabDefaultBranch === undefined) {
+      if (options.branch !== undefined && options.branch !== githubDefaultBranch) {
+        throw new Error(
+          `Cannot sync prototype branch "${options.branch}" because the GitLab repo has no default branch. Create the default branch and the prototype branch before syncing it.`,
+        );
+      }
+
+      if (options.dryRun) {
+        return await previewInitialRebuild(options, githubDefaultBranch, askpass);
+      }
     }
 
     const resolvedGitlabDefaultBranch =

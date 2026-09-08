@@ -12,7 +12,8 @@
     "gh-gl": "./dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    ".env.schema"
   ],
   "type": "module",
   "sideEffects": false,
