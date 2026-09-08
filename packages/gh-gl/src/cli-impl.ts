@@ -2,13 +2,26 @@
 import { Command, CommanderError } from "commander";
 import { z } from "zod";
 
-import { validateTokens } from "./env.js";
+import { readSyncTokens, validateTokens } from "./env.js";
 import { exitCodeForOutcome, formatOutcome } from "./output.js";
+import { isFullGitRemoteUrl } from "./remote-url.js";
 import { sync } from "./sync.js";
 
 const SyncFlagsSchema = z.object({
-  githubUrl: z.string().min(1, "--github-url must be a git remote URL"),
-  gitlabUrl: z.string().min(1, "--gitlab-url must be a git remote URL"),
+  githubUrl: z
+    .string()
+    .min(1, "--github-url must be a git remote URL")
+    .refine(
+      isFullGitRemoteUrl,
+      "--github-url must be a full git remote URL, not owner/repo shorthand",
+    ),
+  gitlabUrl: z
+    .string()
+    .min(1, "--gitlab-url must be a git remote URL")
+    .refine(
+      isFullGitRemoteUrl,
+      "--gitlab-url must be a full git remote URL, not owner/repo shorthand",
+    ),
   overlay: z.string().min(1, "--overlay must be a directory path"),
   branch: z.string().min(1).optional(),
   dryRun: z.boolean(),
@@ -25,16 +38,14 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * Print `message` and set `gh-gl`'s real-error exit code (`2`). JSON errors go to stdout so every
- * JSON-mode result uses the documented output stream. Text errors go to stderr.
+ * Print `message` and set exit code `2` (real error).
  *
- * This sets `process.exitCode` instead of calling `process.exit()` directly: `console.error`'s
- * write to a piped stderr is asynchronous on POSIX, so exiting immediately after it can truncate
- * the message before it reaches the pipe. Setting `process.exitCode` lets the process exit
- * naturally once the write (and everything else pending) has flushed.
+ * JSON errors go to stdout so JSON mode always uses one stream. Text errors go to stderr. Sets
+ * `process.exitCode` instead of calling `process.exit()` so a piped `console` write can finish
+ * before the process exits.
  *
- * @param message - The error to report.
- * @param json - Emit `message` as a JSON object instead of plain text.
+ * @param message - Error text to report to the user.
+ * @param json - When true, emit one JSON object on stdout instead of plain text on stderr.
  */
 function fail(message: string, json: boolean): void {
   if (json) {
@@ -67,8 +78,7 @@ async function runSyncCommand(rawFlags: unknown): Promise<void> {
   }
 
   const flags = parsed.data;
-  const githubToken = process.env["GITHUB_TOKEN"];
-  const gitlabToken = process.env["GITLAB_TOKEN"];
+  const { githubToken, gitlabToken } = readSyncTokens();
   const tokenErrors = validateTokens({
     githubUrl: flags.githubUrl,
     gitlabUrl: flags.gitlabUrl,

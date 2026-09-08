@@ -111,8 +111,7 @@
     {
       "files": ["packages/gh-gl/src/cli.ts", "packages/gh-gl/src/cli-impl.ts"],
       "rules": {
-        "no-console": "off",
-        "node/no-process-env": "off"
+        "no-console": "off"
       }
     }
   ]

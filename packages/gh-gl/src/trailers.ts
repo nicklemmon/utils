@@ -7,8 +7,8 @@ export type SyncTrailers = {
 /**
  * Read `Synced-from-github` and `Synced-from-overlay` trailers out of a commit message.
  *
- * @param message - The full commit message to read trailers from.
- * @returns The parsed trailers, or `undefined` if either trailer is missing.
+ * @param message - Full commit message body, including any trailer block.
+ * @returns Parsed trailer values, or `undefined` when either trailer line is missing.
  */
 export function parseSyncTrailers(message: string): SyncTrailers | undefined {
   const githubMatch = /^Synced-from-github: (.+)$/mu.exec(message);
@@ -24,10 +24,10 @@ export function parseSyncTrailers(message: string): SyncTrailers | undefined {
 }
 
 /**
- * Render `trailers` as commit-message trailer lines, for appending to a commit message body.
+ * Render `trailers` as commit-message trailer lines for appending to a commit message body.
  *
- * @param trailers - The sync state to render.
- * @returns The trailer lines, joined by a newline.
+ * @param trailers - Sync state written into the next rebuild commit.
+ * @returns Two trailer lines joined by a newline, without a trailing blank line.
  */
 export function formatSyncTrailers(trailers: Readonly<SyncTrailers>): string {
   return `Synced-from-github: ${trailers.githubSha}\nSynced-from-overlay: ${trailers.overlayFingerprint}`;

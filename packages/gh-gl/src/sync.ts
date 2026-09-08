@@ -46,10 +46,9 @@ type SyncAskpass = Readonly<{ github: AskpassEnv | undefined; gitlab: AskpassEnv
 type ScratchRepo = Readonly<{ dir: string; cleanup: () => void }>;
 
 /**
- * Create a fresh scratch repo, initialized with {@link initScratchRepo}, for a sync run to use as
- * its working directory.
+ * Create a fresh scratch repo for one sync run to use as its working directory.
  *
- * @returns The scratch repo's directory, and a `cleanup` to remove it.
+ * @returns Scratch repo directory plus a `cleanup` that deletes it.
  */
 async function createScratchRepo(): Promise<ScratchRepo> {
   const dir = mkdtempSync(path.join(tmpdir(), "gh-gl-scratch-"));
@@ -65,19 +64,16 @@ async function createScratchRepo(): Promise<ScratchRepo> {
 }
 
 /**
- * Bootstrap an empty GitLab repo's default branch by pushing an empty commit to it, named after
- * GitHub's default branch. `detectDefaultBranch` can't resolve a branch name for a repo with zero
- * commits — there's nothing for `HEAD` to point at — so this is required before any sync can
- * proceed against a brand-new GitLab repo. Only GitLab gets this treatment: GitHub is the source of
- * truth, and there's nothing to sync from an empty one.
+ * Bootstrap an empty GitLab repo's default branch by pushing an empty commit named after GitHub's.
  *
- * @param options - The sync inputs.
- * @param githubDefaultBranch - GitHub's default branch name; also the name of the branch created on
- *   GitLab.
- * @param gitlabAskpassEnv - The live `GIT_ASKPASS` env for the GitLab remote, or `undefined` for
- *   SSH.
- * @returns The name of GitLab's now-resolvable default branch. Usually `githubDefaultBranch`, but a
- *   concurrent bootstrap racing this one may have already created a different one.
+ * `detectDefaultBranch` cannot resolve a name when there are zero commits. Only GitLab gets this
+ * treatment: GitHub is the source of truth, and an empty GitHub repo has nothing to sync.
+ *
+ * @param options - Sync inputs; uses `gitlabUrl` as the bootstrap push target.
+ * @param githubDefaultBranch - Name taken from GitHub and used for the new GitLab default branch.
+ * @param gitlabAskpassEnv - Live `GIT_ASKPASS` env for GitLab, or `undefined` for SSH.
+ * @returns GitLab's now-resolvable default branch name. Usually `githubDefaultBranch`; a concurrent
+ *   bootstrap may have created a different one first.
  */
 async function bootstrapGitlabDefaultBranch(
   options: Readonly<SyncOptions>,
@@ -219,16 +215,16 @@ async function attemptRebuild(
 }
 
 /**
- * Run the rebuild path for `branch`: wipe-and-rebuild it from GitHub's default branch plus the
- * overlay. Retries once, from scratch, if the push is rejected as non-fast-forward (e.g. a
- * concurrent sync run won the race); a second rejection is a real error, not a race to keep
- * retrying.
+ * Run the rebuild path for `branch`: wipe-and-rebuild it from GitHub's default branch plus overlay.
  *
- * @param options - The sync inputs.
- * @param branch - The GitLab branch being rebuilt (its own default branch).
- * @param githubDefaultBranch - GitHub's default branch name.
- * @param askpass - The live `GIT_ASKPASS` env for each remote.
- * @returns What happened.
+ * Retries once from scratch if the push is rejected as non-fast-forward. A second rejection is a
+ * real error, not another race to keep retrying.
+ *
+ * @param options - Sync inputs for this run.
+ * @param branch - GitLab default branch being rebuilt.
+ * @param githubDefaultBranch - GitHub default branch whose tree is the rebuild source.
+ * @param askpass - Live `GIT_ASKPASS` env for each remote.
+ * @returns Sync outcome for this rebuild attempt (including after one retry).
  */
 async function runRebuild(
   options: Readonly<SyncOptions>,
@@ -261,18 +257,17 @@ type MergeTarget = Readonly<{
 }>;
 
 /**
- * Run the merge path for `target.branch`: merge GitLab's default branch into it. Unlike
- * {@link runRebuild}, this never retries a rejected push — a rebuild recomputes the same target
- * content from scratch on retry, but a merge's result depends on `target.branch`'s content at fetch
- * time, so retrying after a race would need a fresh fetch and merge, which risks a different (or
- * newly conflicting) result than the one already reported to the caller. A rejected push here is
+ * Run the merge path for `target.branch`: merge GitLab's default branch into it.
+ *
+ * Unlike {@link runRebuild}, this never retries a rejected push. A rebuild recomputes the same
+ * target content on retry; a merge depends on `target.branch` at fetch time, so a retry after a
+ * race could report a different result than the one already computed. A rejected push here is
  * always a real error for a human to resolve.
  *
- * @param scratchDir - A scratch repo previously created with {@link initScratchRepo}.
- * @param options - The sync inputs.
- * @param target - The branch being merged into, GitLab's default branch being merged in, and the
- *   live `GIT_ASKPASS` env for the GitLab remote.
- * @returns What happened.
+ * @param scratchDir - Scratch repo from {@link initScratchRepo}.
+ * @param options - Sync inputs for this run.
+ * @param target - Prototype branch, GitLab default branch to merge in, and GitLab askpass env.
+ * @returns Sync outcome for this merge (`merged`, `conflict`, or a thrown error on push rejection).
  */
 async function runMerge(
   scratchDir: string,
@@ -320,12 +315,13 @@ async function runMerge(
 }
 
 /**
- * Run one `gh-gl sync`: sync GitHub's default branch into GitLab's default branch (rebuild path),
- * or merge GitLab's default branch into a prototype branch (merge path), depending on which branch
- * is targeted.
+ * Run one `gh-gl sync`.
  *
- * @param options - The sync inputs.
- * @returns What happened.
+ * Rebuilds GitLab's default branch from GitHub plus overlay, or merges that default branch into a
+ * prototype branch, depending on which branch is targeted.
+ *
+ * @param options - Remotes, overlay, target branch, dry-run flag, and optional HTTPS tokens.
+ * @returns Sync outcome describing no-op, rebuild, merge, or conflict.
  */
 export async function sync(options: Readonly<SyncOptions>): Promise<SyncOutcome> {
   const githubAskpass =

@@ -12,10 +12,10 @@ import {
 } from "./test-support/fixture-repo.js";
 
 /**
- * Install a `pre-receive` hook on a bare repo that declines every push, so a push to it fails the
- * same way a real concurrent-writer race would (git reports it as `[remote rejected]`, which
- * `pushBranch` treats the same as a non-fast-forward rejection) — deterministically, without
- * needing two real processes to race each other.
+ * Install a `pre-receive` hook that rejects every push.
+ *
+ * That makes the remote fail the same way a concurrent-writer race does, without needing two
+ * processes to race.
  */
 function installRejectingPreReceiveHook(bareRepoDir: string): void {
   const hookPath = path.join(bareRepoDir, "hooks", "pre-receive");
@@ -271,6 +271,46 @@ describe("sync", () => {
 
     expect(second.kind).toBe("rebuilt");
     expect(readFileSync(path.join(gitlab.dir, ".gitlab-ci.yml"), "utf8")).toBe("stages: [build]\n");
+  });
+
+  it("rebuilds when GitHub's default branch content changes", async () => {
+    const github = await createFixtureRepo();
+
+    cleanups.push(github.cleanup);
+    await github.commit("Initial commit", { "README.md": "hello" });
+
+    const gitlab = await createFixtureRepo();
+
+    cleanups.push(gitlab.cleanup);
+    await gitlab.commit("Seed commit", { ".gitkeep": "" });
+
+    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
+
+    cleanups.push(() => {
+      rmSync(overlayDir, { recursive: true, force: true });
+    });
+    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
+
+    const first = await sync({
+      githubUrl: github.dir,
+      gitlabUrl: gitlab.dir,
+      overlayDir,
+      dryRun: false,
+    });
+
+    expect(first.kind).toBe("rebuilt");
+
+    await github.commit("Update README", { "README.md": "hello from github" });
+
+    const second = await sync({
+      githubUrl: github.dir,
+      gitlabUrl: gitlab.dir,
+      overlayDir,
+      dryRun: false,
+    });
+
+    expect(second.kind).toBe("rebuilt");
+    expect(readFileSync(path.join(gitlab.dir, "README.md"), "utf8")).toBe("hello from github");
   });
 
   it("drops files deleted on GitHub's default branch from the rebuilt tree", async () => {

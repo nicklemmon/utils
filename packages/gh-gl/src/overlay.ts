@@ -2,11 +2,12 @@ import { cp } from "node:fs/promises";
 import path from "node:path";
 
 /**
- * Copy `overlayDir` onto `destDir`. Overlay files always win on path collision: this is a plain
- * overwrite copy, with no merge logic.
+ * Copy `overlayDir` onto `destDir`.
  *
- * @param overlayDir - The GitLab-specific overlay directory.
- * @param destDir - The extracted GitHub tree to layer the overlay onto.
+ * Overlay files always win on path collision. This is a plain overwrite copy with no merge logic.
+ *
+ * @param overlayDir - Local GitLab-specific overlay directory to layer on top.
+ * @param destDir - Extracted GitHub tree that receives the overlay files.
  */
 export async function copyOverlayOnto(overlayDir: string, destDir: string): Promise<void> {
   await cp(overlayDir, destDir, {

@@ -35,4 +35,15 @@ describe("validateTokens", () => {
 
     expect(errors).toEqual([]);
   });
+
+  it("treats an empty-string token as missing for an HTTPS remote", () => {
+    const errors = validateTokens({
+      githubUrl: "https://github.com/nicklemmon/utils.git",
+      gitlabUrl: "https://gitlab.com/nicklemmon/utils.git",
+      githubToken: "",
+      gitlabToken: "gl-token",
+    });
+
+    expect(errors).toEqual(["GITHUB_TOKEN is required when --github-url is HTTPS"]);
+  });
 });

@@ -11,13 +11,13 @@ const VarlockPackageJsonSchema = z.object({
 });
 
 /**
- * Find the installed `varlock` package's own directory. `varlock`'s `package.json` doesn't expose a
- * `./package.json` export subpath, so it can't be resolved directly — instead, resolve its main
- * entry point (which _is_ exported) and locate the enclosing `node_modules/varlock` directory. This
- * doesn't depend on the entry point living next to `package.json` on disk (unlike walking up parent
- * directories looking for one), only on the standard `node_modules/<package>/...` install layout.
+ * Find the installed `varlock` package directory.
  *
- * @returns The absolute path to varlock's package directory.
+ * `varlock`'s `package.json` has no `./package.json` export subpath, so resolve its main entry
+ * instead and take the enclosing `node_modules/varlock` directory. This only needs the standard
+ * `node_modules/<package>/...` install layout.
+ *
+ * @returns Absolute path to that package directory.
  */
 function resolveVarlockPackageDir(): string {
   const entryPath = fileURLToPath(import.meta.resolve("varlock"));
@@ -32,10 +32,9 @@ function resolveVarlockPackageDir(): string {
 }
 
 /**
- * Resolve the `varlock` CLI's own script path on disk, rather than relying on `PATH` (which isn't
- * guaranteed to include it for a global install).
+ * Resolve the `varlock` CLI script on disk. Do not rely on `PATH`; a global install may omit it.
  *
- * @returns The absolute path to varlock's bin script.
+ * @returns Absolute path to varlock's bin script.
  */
 function resolveVarlockBin(): string {
   const packageDir = resolveVarlockPackageDir();

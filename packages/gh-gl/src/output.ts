@@ -23,13 +23,14 @@ export type SyncOutcome =
     };
 
 /**
- * Map a sync outcome to the CLI's exit code. `no-op` and `rebuilt`/`merged` both succeed with code
- * `0` — the repo ends up in the correct state either way. `conflict` is `1`, a non-bug outcome that
- * needs a human. Real errors (bad auth, invalid input, unexpected git failures) are thrown as
- * exceptions, not represented here, and map to code `2` at the CLI boundary.
+ * Map a sync outcome to the CLI's exit code.
  *
- * @param outcome - The result of a sync run.
- * @returns The process exit code for `outcome`.
+ * `no-op`, `rebuilt`, and `merged` all succeed with `0` — the repo ends in the correct state either
+ * way. `conflict` is `1`, a non-bug outcome that needs a human. Real errors (bad auth, invalid
+ * input, unexpected git failures) are thrown as exceptions and map to `2` at the CLI boundary.
+ *
+ * @param outcome - Sync result to translate into an exit code.
+ * @returns `0` for success kinds, or `1` for `conflict`.
  */
 export function exitCodeForOutcome(outcome: Readonly<SyncOutcome>): number {
   return outcome.kind === "conflict" ? 1 : 0;
@@ -68,11 +69,11 @@ function formatOutcomeAsText(outcome: Readonly<SyncOutcome>): string {
 }
 
 /**
- * Render a sync outcome for the CLI's stdout, as human-readable text or as a single JSON object.
+ * Render a sync outcome for the CLI's stdout.
  *
- * @param outcome - The result of a sync run.
- * @param options - `json: true` emits one JSON object instead of text.
- * @returns The formatted output.
+ * @param outcome - Sync result to print.
+ * @param options - When `json` is true, emit one JSON object instead of human-readable text.
+ * @returns A single text block or JSON object string for stdout.
  */
 export function formatOutcome(
   outcome: Readonly<SyncOutcome>,

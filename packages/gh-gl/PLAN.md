@@ -240,8 +240,9 @@ Things this design depends on that the CLI does not itself enforce:
   GitLab branch protection rules). The rebuild path's wipe-and-rebuild safety
   assumption — "nobody commits to the default branch by hand" — is a convention
   the operator enforces, not something `gh-gl` checks or defends against.
-- **The GitLab repo is pre-seeded** with at least one commit on its default branch
-  before the first sync (see **Default branch detection**).
+- **GitHub already has a commit on its default branch** before the first sync
+  (see **Default branch detection**). An empty GitLab repo is fine: `gh-gl`
+  bootstraps its default branch automatically.
 - **Syncs for a given branch are not run concurrently** from two different
   invocations. The rebuild path tolerates one transient race via a single retry
   (see **Rebuild path**, step 8); it is not designed for sustained concurrent

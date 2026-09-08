@@ -11,11 +11,12 @@ export type FixtureRepo = {
 };
 
 /**
- * Create a throwaway local git repository under the OS temp dir, for integration tests to use as a
- * stand-in for a real GitHub/GitLab remote. Git treats a local path the same as any other remote,
- * so tests exercise the real `git` binary end to end.
+ * Create a throwaway local git repository under the OS temp dir.
  *
- * @returns The fixture repo's directory, a `commit` helper, and `cleanup`.
+ * Integration tests use it as a stand-in for a real GitHub or GitLab remote. Git treats a local
+ * path like any other remote, so tests exercise the real `git` binary end to end.
+ *
+ * @returns The fixture repo directory, a `commit` helper, and `cleanup`.
  */
 export async function createFixtureRepo(): Promise<FixtureRepo> {
   const dir = mkdtempSync(path.join(tmpdir(), "gh-gl-fixture-"));
@@ -59,15 +60,15 @@ export type BareFixtureRepo = {
 };
 
 /**
- * Create a throwaway bare git repository, seeded with one commit. Unlike {@link createFixtureRepo},
- * this has no working tree to check out or edit directly — real GitHub/GitLab remotes are always
- * bare. Use this instead of {@link createFixtureRepo} for tests that push to the same remote
- * concurrently: a non-bare remote's `receive.denyCurrentBranch=updateInstead` workaround updates
- * its working tree on every push, which two concurrent pushes can race on (`index.lock` contention)
- * in a way a real, bare remote never can.
+ * Create a throwaway bare git repository, seeded with one commit.
+ *
+ * Unlike {@link createFixtureRepo}, this has no working tree. Real GitHub and GitLab remotes are
+ * bare. Use this for concurrent-push tests: a non-bare remote with
+ * `receive.denyCurrentBranch=updateInstead` updates its working tree on every push, and two
+ * concurrent pushes can race on `index.lock` in a way a real bare remote never can.
  *
  * @param seedFiles - Files to commit before the repo is made bare.
- * @returns The bare repo's directory and a `cleanup`.
+ * @returns The bare repo directory and a `cleanup`.
  */
 export async function createBareFixtureRepo(
   seedFiles: Readonly<Record<string, string>>,
@@ -90,17 +91,13 @@ export async function createBareFixtureRepo(
 }
 
 /**
- * Create a throwaway bare git repository with zero commits — a real GitHub/GitLab remote before its
- * first-ever push, with no resolvable `HEAD`. Unlike {@link createBareFixtureRepo}, this seeds
- * nothing at all.
+ * Create a throwaway bare git repository with zero commits and no resolvable `HEAD`.
  *
- * A real GitHub/GitLab repo automatically adopts the first branch ever pushed to it as its default
- * branch (confirmed live: pushing to a brand-new repo over plain SSH, no API call, made `HEAD`
- * resolve to it immediately) — that's platform behavior layered on top of git, not something plain
- * `git init --bare` does on its own. A `pre-receive` hook here replicates it, so this fixture
- * matches what `gh-gl` actually sees against a real empty remote.
+ * Real GitHub and GitLab remotes adopt the first pushed branch as their default. Plain `git init
+ * --bare` does not. A `pre-receive` hook here copies that platform behavior so the fixture matches
+ * an empty remote.
  *
- * @returns The bare repo's directory and a `cleanup`.
+ * @returns The bare repo directory and a `cleanup`.
  */
 export async function createEmptyBareFixtureRepo(): Promise<BareFixtureRepo> {
   const dir = mkdtempSync(path.join(tmpdir(), "gh-gl-bare-"));
