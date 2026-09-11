@@ -2,19 +2,9 @@ name: zizmor
 
 on:
   pull_request:
-    paths:
-      - ".github/workflows/**"
-      - ".github/actions/**"
-      - "**/action.yml"
-      - "**/action.yaml"
   push:
     branches:
       - main
-    paths:
-      - ".github/workflows/**"
-      - ".github/actions/**"
-      - "**/action.yml"
-      - "**/action.yaml"
 
 permissions: {}
 
@@ -23,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
+  actionlint:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -41,7 +31,16 @@ jobs:
           echo "${ACTIONLINT_SHA256}  /tmp/actionlint.tgz" | sha256sum --check
           tar -xzf /tmp/actionlint.tgz -C /tmp actionlint
           /tmp/actionlint -color
-      - uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+
+  zizmor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
           advanced-security: false
-          version: v1.29.0
+          version: v1.30.1
