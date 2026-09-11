@@ -44,8 +44,9 @@ This repo uses [Changesets](https://github.com/changesets/changesets) for versio
 
 1. On a feature PR, run `npm run changesets:add` and commit the file under `.changeset/`.
 2. After merge to `main`, the Release workflow opens or updates a **Version Packages** PR (version bumps + changelogs).
-3. Merge that PR. The Release workflow publishes public `@nicklemmon/*` packages to npm.
+3. Merge that PR. The Release workflow starts a **publish** job in the `npm-publish` GitHub Environment.
+4. Approve that deployment when GitHub asks. Only then does CI publish to npm (OIDC), create git tags, and create GitHub Releases.
 
-CI publishes with [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC). There is no long-lived `NPM_TOKEN` in GitHub secrets. Provenance attestations are attached automatically.
+CI publishes with [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC). There is no long-lived `NPM_TOKEN` in GitHub secrets. Provenance attestations are attached automatically. The Trusted Publisher on npm should use Environment name `npm-publish` so it matches the GitHub Environment.
 
 `@nicklemmon/example` and `@repo/*` packages stay private and are not published.
