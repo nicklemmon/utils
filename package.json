@@ -29,9 +29,9 @@
     "quality": "turbo run lint format",
     "qa": "turbo run build check-types test lint format --continue && npm run audit",
     "audit": "npm audit --audit-level=high",
-    "changeset": "changeset",
-    "version-packages": "changeset version",
-    "release": "npm run build && changeset publish"
+    "changesets:add": "changeset",
+    "changesets:version": "changeset version",
+    "changesets:publish": "npm run build && changeset publish"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "^0.18.5",

@@ -8,23 +8,23 @@ Public packages use the `@nicklemmon/*` scope and live in `packages/<name>`
 
 ## Scripts
 
-| Command                    | What it does                                                   |
-| -------------------------- | -------------------------------------------------------------- |
-| `npm run build`            | Bundle each package with tsdown (ESM + `.d.ts`, attw, publint) |
-| `npm run check-types`      | `tsc --noEmit` per package                                     |
-| `npm run test`             | Vitest per package                                             |
-| `npm run test:watch`       | Vitest per package in watch mode                               |
-| `npm run dev`              | Run each package's `dev` script                                |
-| `npm run lint`             | Oxlint (type-aware)                                            |
-| `npm run lint:fix`         | Oxlint with autofix                                            |
-| `npm run format`           | Oxfmt check                                                    |
-| `npm run format:fix`       | Oxfmt write                                                    |
-| `npm run quality`          | Lint and format (cached via turbo)                             |
-| `npm run qa`               | Build, typecheck, test, lint, format, and `npm audit`          |
-| `npm run audit`            | Fail on high or critical `npm audit` findings                  |
-| `npm run changeset`        | Add a changeset for a version bump                             |
-| `npm run version-packages` | Apply changesets locally (does not publish)                    |
-| `npm run release`          | Build packages, then `changeset publish` (CI / bootstrap)      |
+| Command                      | What it does                                                   |
+| ---------------------------- | -------------------------------------------------------------- |
+| `npm run build`              | Bundle each package with tsdown (ESM + `.d.ts`, attw, publint) |
+| `npm run check-types`        | `tsc --noEmit` per package                                     |
+| `npm run test`               | Vitest per package                                             |
+| `npm run test:watch`         | Vitest per package in watch mode                               |
+| `npm run dev`                | Run each package's `dev` script                                |
+| `npm run lint`               | Oxlint (type-aware)                                            |
+| `npm run lint:fix`           | Oxlint with autofix                                            |
+| `npm run format`             | Oxfmt check                                                    |
+| `npm run format:fix`         | Oxfmt write                                                    |
+| `npm run quality`            | Lint and format (cached via turbo)                             |
+| `npm run qa`                 | Build, typecheck, test, lint, format, and `npm audit`          |
+| `npm run audit`              | Fail on high or critical `npm audit` findings                  |
+| `npm run changesets:add`     | Add a changeset for a version bump                             |
+| `npm run changesets:version` | Apply changesets locally (does not publish)                    |
+| `npm run changesets:publish` | Build packages, then `changeset publish` (CI / bootstrap)      |
 
 Run `turbo run lint` / `turbo run format` when you want those root tasks cached.
 
@@ -42,7 +42,7 @@ Packages are ESM-only. Coding conventions (JSDoc, `type` vs `interface`, no `as`
 
 This repo uses [Changesets](https://github.com/changesets/changesets) for versions and changelogs.
 
-1. On a feature PR, run `npm run changeset` and commit the file under `.changeset/`.
+1. On a feature PR, run `npm run changesets:add` and commit the file under `.changeset/`.
 2. After merge to `main`, the Release workflow opens or updates a **Version Packages** PR (version bumps + changelogs).
 3. Merge that PR. The Release workflow publishes public `@nicklemmon/*` packages to npm.
 
