@@ -47,6 +47,24 @@ This repo uses [Changesets](https://github.com/changesets/changesets) for versio
 3. Merge that PR. The Release workflow starts a **publish** job in the `npm-publish` GitHub Environment.
 4. Approve that deployment when GitHub asks. Only then does CI publish to npm (OIDC), create git tags, and create GitHub Releases.
 
-CI publishes with [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC). There is no long-lived `NPM_TOKEN` in GitHub secrets. Provenance attestations are attached automatically. The Trusted Publisher on npm should use Environment name `npm-publish` so it matches the GitHub Environment.
+CI publishes with [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC). There is no long-lived `NPM_TOKEN` in GitHub secrets. Provenance attestations are attached automatically.
+
+### Trusted Publisher
+
+On each public package, the GitHub Actions Trusted Publisher must use:
+
+- Organization or user: `nicklemmon`
+- Repository: `utils`
+- Workflow filename: `release.yml`
+- Environment name: `npm-publish`
+- Allowed actions: allow `npm publish`
+
+Trusted Publisher entries cannot be edited in place. To change a field, delete the connection and create it again.
+
+### While a publish waits for approval
+
+Do not merge unrelated commits to `main` until you approve or reject the waiting publish. Extra pushes can start more publish jobs and create duplicate approval prompts.
+
+If you reject or cancel the environment approval, versions may already be on `main` while npm still lacks that release. Re-run the failed Release workflow (or re-run the publish job) after you are ready to publish.
 
 `@nicklemmon/example` and `@repo/*` packages stay private and are not published.

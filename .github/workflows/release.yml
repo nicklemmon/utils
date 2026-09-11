@@ -91,6 +91,7 @@ jobs:
     concurrency:
       group: release-publish-${{ github.ref }}
       cancel-in-progress: false
+      queue: max
     env:
       TURBO_TELEMETRY_DISABLED: "1"
     permissions:
