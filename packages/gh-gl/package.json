@@ -1,6 +1,6 @@
 {
   "name": "@nicklemmon/gh-gl",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Sync a GitHub repo's default branch into a downstream GitLab repo",
   "license": "MIT",
   "repository": {
