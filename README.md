@@ -24,6 +24,7 @@ Public packages use the `@nicklemmon/*` scope and live in `packages/<name>`
 | `npm run audit`            | Fail on high or critical `npm audit` findings                  |
 | `npm run changeset`        | Add a changeset for a version bump                             |
 | `npm run version-packages` | Apply changesets locally (does not publish)                    |
+| `npm run release`          | Build packages, then `changeset publish` (CI / bootstrap)      |
 
 Run `turbo run lint` / `turbo run format` when you want those root tasks cached.
 
@@ -37,6 +38,14 @@ Run `turbo run lint` / `turbo run format` when you want those root tasks cached.
 
 Packages are ESM-only. Coding conventions (JSDoc, `type` vs `interface`, no `as`) are in [AGENTS.md](./AGENTS.md).
 
-## Versioning
+## Versioning and publishing
 
-This repo uses [Changesets](https://github.com/changesets/changesets) for version and changelog files. Publishing to npm is not automated yet.
+This repo uses [Changesets](https://github.com/changesets/changesets) for versions and changelogs.
+
+1. On a feature PR, run `npm run changeset` and commit the file under `.changeset/`.
+2. After merge to `main`, the Release workflow opens or updates a **Version Packages** PR (version bumps + changelogs).
+3. Merge that PR. The Release workflow publishes public `@nicklemmon/*` packages to npm.
+
+CI publishes with [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC). There is no long-lived `NPM_TOKEN` in GitHub secrets. Provenance attestations are attached automatically.
+
+`@nicklemmon/example` and `@repo/*` packages stay private and are not published.
