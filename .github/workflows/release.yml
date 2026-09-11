@@ -7,10 +7,6 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: release-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   select-mode:
     runs-on: ubuntu-latest
@@ -37,6 +33,9 @@ jobs:
     if: needs.select-mode.outputs.mode == 'version'
     needs: select-mode
     runs-on: ubuntu-latest
+    concurrency:
+      group: release-version-${{ github.ref }}
+      cancel-in-progress: true
     env:
       TURBO_TELEMETRY_DISABLED: "1"
     permissions:
@@ -89,6 +88,9 @@ jobs:
       - pack
     runs-on: ubuntu-latest
     environment: npm-publish
+    concurrency:
+      group: release-publish-${{ github.ref }}
+      cancel-in-progress: false
     env:
       TURBO_TELEMETRY_DISABLED: "1"
     permissions:
