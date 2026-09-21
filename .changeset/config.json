@@ -7,10 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": [
-    "@nicklemmon/example",
-    "@repo/anti-slop",
-    "@repo/packaging-check",
-    "@repo/typescript-config"
-  ]
+  "ignore": ["@nicklemmon/example", "@repo/anti-slop", "@repo/typescript-config"]
 }
