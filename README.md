@@ -20,7 +20,8 @@ Public packages use the `@nicklemmon/*` scope and live in `packages/<name>`
 | `npm run format`             | Oxfmt check                                                    |
 | `npm run format:fix`         | Oxfmt write                                                    |
 | `npm run check`              | Lint and format (cached via turbo)                             |
-| `npm run qa`                 | Build, typecheck, test, lint, format, and `npm audit`          |
+| `npm run check-packaging`    | Require attw and publint on every publishable package          |
+| `npm run qa`                 | Packaging check, build, typecheck, test, lint, format, audit   |
 | `npm run audit`              | Fail on high or critical `npm audit` findings                  |
 | `npm run changesets:add`     | Add a changeset for a version bump                             |
 | `npm run changesets:version` | Apply changesets locally (does not publish)                    |
@@ -32,7 +33,7 @@ Run `turbo run lint` / `turbo run format` when you want those root tasks cached.
 
 1. Create `packages/<name>` with `"name": "@nicklemmon/<name>"` and `"type": "module"`.
 2. Extend `@repo/typescript-config/library.json`.
-3. Add a `tsdown.config.ts` (ESM only, `attw.profile: "esm-only"`) and a `vitest.config.ts`.
+3. Add a `tsdown.config.ts` (ESM only) and a `vitest.config.ts`. Set `attw` to `{ profile: "esm-only", level: "error" }` and `publint` to `true`. `npm run qa` fails when a publishable package omits that file. It also fails when any `tsdown.config.ts` omits those settings.
 4. Implement `build`, `check-types`, `test`, and `dev` scripts to match `@nicklemmon/example`.
 5. Put runtime libraries such as `zod` in `dependencies` so tsdown externalizes them.
 

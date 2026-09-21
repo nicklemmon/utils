@@ -103,7 +103,7 @@
       }
     },
     {
-      "files": ["packages/gh-gl/**/*.ts"],
+      "files": ["packages/gh-gl/**/*.ts", "packages/packaging-check/**/*.ts"],
       "rules": {
         "oxc/no-async-await": "off"
       }

@@ -1,0 +1,26 @@
+{
+  "name": "@repo/packaging-check",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Fail when a publishable package omits attw or publint",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/check-packages.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit --project tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@repo/anti-slop": "*",
+    "@repo/typescript-config": "*",
+    "@types/node": "^26.4.1",
+    "typescript": "*",
+    "vitest": "*"
+  }
+}
