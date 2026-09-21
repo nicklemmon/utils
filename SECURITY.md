@@ -19,7 +19,3 @@ This repository publishes TypeScript libraries. Reports that matter:
 ## Supported versions
 
 Only the latest published version of each `@nicklemmon/*` package is supported.
-
-## Dependency updates
-
-How this repo handles dependency bumps, security merges, and removal audits: [docs/dependency-updates.md](./docs/dependency-updates.md).
