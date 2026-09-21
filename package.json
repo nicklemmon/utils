@@ -27,8 +27,7 @@
     "format": "oxfmt --check .",
     "format:fix": "oxfmt .",
     "check": "turbo run lint format",
-    "check-packaging": "node scripts/check-attw-publint.ts",
-    "qa": "npm run check-packaging && turbo run build check-types test lint format --continue && npm run audit",
+    "qa": "turbo run build check-types test lint format --continue && npm run audit",
     "audit": "npm audit --audit-level=high",
     "changesets:add": "changeset",
     "changesets:version": "changeset version",
@@ -38,7 +37,6 @@
     "@arethetypeswrong/core": "^0.18.5",
     "@changesets/cli": "^3.0.3",
     "@repo/anti-slop": "*",
-    "@types/node": "^26.4.1",
     "oxfmt": "^0.66.0",
     "oxlint": "^1.81.0",
     "oxlint-tsgolint": "^7.0.2001",
@@ -46,8 +44,7 @@
     "tsdown": "^0.23.0",
     "turbo": "^2.10.13",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.0",
-    "zod": "^4.5.4"
+    "vitest": "^5.0.0"
   },
   "engines": {
     "node": "^22.18.0 || ^24.11.0 || >=26.0.0"

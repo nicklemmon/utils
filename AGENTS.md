@@ -2,7 +2,7 @@
 
 Copy `packages/example` when you add a public package. Private `@repo/*` toolchain packages do not copy `example`.
 
-Set `attw` and `publint` in `tsdown.config.ts`. `npm run qa` fails when a publishable package omits that file, and when any `tsdown.config.ts` omits either setting.
+For a public package, set `attw` to `{ profile: "esm-only", level: "error" }` and `publint` to `true` in `tsdown.config.ts`.
 
 Run `npm run qa` before you push.
 

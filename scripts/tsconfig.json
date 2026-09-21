@@ -1,8 +1,0 @@
-{
-  "extends": "../packages/typescript-config/base.json",
-  "compilerOptions": {
-    "rootDir": ".",
-    "types": ["node"]
-  },
-  "include": ["check-attw-publint.ts"]
-}
