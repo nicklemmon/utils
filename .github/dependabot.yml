@@ -8,16 +8,42 @@ updates:
       default-days: 7
     open-pull-requests-limit: 10
     groups:
-      npm-production:
+      # Patch-only groups so fetch-metadata update-type stays semver-patch
+      # and auto-merge can match. Mixed groups report the highest SemVer.
+      npm-production-patch:
         dependency-type: production
-      npm-development:
+        update-types:
+          - "patch"
+        applies-to: version-updates
+      npm-production-minor-major:
+        dependency-type: production
+        update-types:
+          - "minor"
+          - "major"
+        applies-to: version-updates
+      npm-development-patch:
         dependency-type: development
+        update-types:
+          - "patch"
+        applies-to: version-updates
+      npm-development-minor-major:
+        dependency-type: development
+        update-types:
+          - "minor"
+          - "major"
+        applies-to: version-updates
+      # Named *security* so the auto-merge workflow can match any SemVer.
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     cooldown:
       default-days: 7
+    # Never auto-merged (workflow excludes github-actions). Keep one group.
     groups:
       github-actions:
         patterns:

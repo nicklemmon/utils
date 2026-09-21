@@ -1,21 +1,31 @@
-# Matches GitHub's documented Dependabot auto-merge pattern:
+# Based on GitHub's documented Dependabot auto-merge pattern:
 # https://docs.github.com/en/code-security/tutorials/secure-your-dependencies/automate-dependabot-with-actions
 name: Dependabot auto-merge
 
-on: pull_request
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
 
-permissions:
-  contents: write
-  pull-requests: write
+# Match sibling workflows: deny by default, elevate on the job.
+permissions: {}
 
 concurrency:
   group: dependabot-auto-merge-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  # Do not cancel while `gh pr merge --auto` may be in flight.
+  cancel-in-progress: false
 
 jobs:
   dependabot:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.repository == 'nicklemmon/utils'
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Dependabot metadata
         id: metadata
@@ -23,9 +33,36 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Enable auto-merge for patch updates
-        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+      - name: Approve and enable auto-merge
+        if: >-
+          steps.metadata.outputs.package-ecosystem != 'github-actions' &&
+          (
+            steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+            contains(steps.metadata.outputs.dependency-group, 'security')
+          )
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh pr merge --auto --squash "$PR_URL"
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}
+          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+        run: |
+          set -euo pipefail
+          echo "Auto-merging ecosystem=${PACKAGE_ECOSYSTEM} update-type=${UPDATE_TYPE} group=${DEPENDENCY_GROUP}"
+          gh pr review --approve "$PR_URL" \
+            --body "Auto-approved: npm patch or security update. Merges when required checks pass."
+          gh pr merge --auto --squash "$PR_URL"
+
+      - name: Skip auto-merge
+        if: >-
+          steps.metadata.outputs.package-ecosystem == 'github-actions' ||
+          (
+            steps.metadata.outputs.update-type != 'version-update:semver-patch' &&
+            !contains(steps.metadata.outputs.dependency-group, 'security')
+          )
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          DEPENDENCY_GROUP: ${{ steps.metadata.outputs.dependency-group }}
+          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+        run: |
+          echo "Skipping auto-merge: ecosystem=${PACKAGE_ECOSYSTEM} update-type=${UPDATE_TYPE} group=${DEPENDENCY_GROUP}"
