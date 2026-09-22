@@ -8,23 +8,23 @@ Public packages use the `@nicklemmon/*` scope and live in `packages/<name>`
 
 ## Scripts
 
-| Command                      | What it does                                                   |
-| ---------------------------- | -------------------------------------------------------------- |
-| `npm run build`              | Bundle each package with tsdown (ESM + `.d.ts`)                |
-| `npm run check-types`        | `tsc --noEmit` per package                                     |
-| `npm run test`               | Vitest per package                                             |
-| `npm run test:watch`         | Vitest per package in watch mode                               |
-| `npm run dev`                | Run each package's `dev` script                                |
-| `npm run lint`               | Oxlint (type-aware)                                            |
-| `npm run lint:fix`           | Oxlint with autofix                                            |
-| `npm run format`             | Oxfmt check                                                    |
-| `npm run format:fix`         | Oxfmt write                                                    |
-| `npm run check`              | Lint and format (cached via turbo)                             |
-| `npm run qa`                 | Build, typecheck, test, lint, format, and `npm audit`          |
-| `npm run audit`              | Fail on high or critical `npm audit` findings                  |
-| `npm run changesets:add`     | Add a changeset for a version bump                             |
-| `npm run changesets:version` | Apply changesets locally (does not publish)                    |
-| `npm run changesets:publish` | Build packages, then `changeset publish` (CI / bootstrap)      |
+| Command                      | What it does                                              |
+| ---------------------------- | --------------------------------------------------------- |
+| `npm run build`              | Bundle each package with tsdown (ESM + `.d.ts`)           |
+| `npm run check-types`        | `tsc --noEmit` per package                                |
+| `npm run test`               | Vitest per package                                        |
+| `npm run test:watch`         | Vitest per package in watch mode                          |
+| `npm run dev`                | Run each package's `dev` script                           |
+| `npm run lint`               | Oxlint (type-aware)                                       |
+| `npm run lint:fix`           | Oxlint with autofix                                       |
+| `npm run format`             | Oxfmt check                                               |
+| `npm run format:fix`         | Oxfmt write                                               |
+| `npm run check`              | Lint and format (cached via turbo)                        |
+| `npm run qa`                 | Build, typecheck, test, lint, format, and `npm audit`     |
+| `npm run audit`              | Fail on high or critical `npm audit` findings             |
+| `npm run changesets:add`     | Add a changeset for a version bump                        |
+| `npm run changesets:version` | Apply changesets locally (does not publish)               |
+| `npm run changesets:publish` | Build packages, then `changeset publish` (CI / bootstrap) |
 
 Run `turbo run lint` / `turbo run format` when you want those root tasks cached.
 
