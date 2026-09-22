@@ -37,8 +37,8 @@
   "dependencies": {
     "commander": "^15.0.0",
     "execa": "^10.0.1",
-    "varlock": "^1.18.0",
-    "zod": "^4.5.4"
+    "varlock": "^1.19.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "*",
