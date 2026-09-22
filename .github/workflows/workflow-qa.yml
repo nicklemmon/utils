@@ -1,4 +1,4 @@
-name: zizmor
+name: Workflow QA
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: zizmor-${{ github.workflow }}-${{ github.ref }}
+  group: workflow-qa-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
