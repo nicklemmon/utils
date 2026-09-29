@@ -44,7 +44,7 @@
     "@arethetypeswrong/core": "*",
     "@repo/anti-slop": "*",
     "@repo/typescript-config": "*",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.1",
     "publint": "*",
     "tsdown": "*",
     "typescript": "*",
