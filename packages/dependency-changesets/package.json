@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@repo/typescript-config": "*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.5",
     "@types/picomatch": "^4.0.3",
     "typescript": "*",
     "vitest": "*"
