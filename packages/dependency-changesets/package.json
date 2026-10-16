@@ -1,0 +1,25 @@
+{
+  "name": "@repo/dependency-changesets",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Generate changesets for Dependabot runtime dependency updates",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "check-types": "tsc --noEmit --project tsconfig.json",
+    "test": "vitest run",
+    "generate": "node src/cli.ts"
+  },
+  "dependencies": {
+    "picomatch": "^4.0.7",
+    "xstate": "^5.33.2",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "*",
+    "@types/node": "^26.6.2",
+    "@types/picomatch": "^4.0.3",
+    "typescript": "*",
+    "vitest": "*"
+  }
+}

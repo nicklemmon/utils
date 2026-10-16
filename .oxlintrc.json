@@ -109,6 +109,12 @@
       }
     },
     {
+      "files": ["packages/dependency-changesets/**/*.ts"],
+      "rules": {
+        "oxc/no-async-await": "off"
+      }
+    },
+    {
       "files": ["packages/gh-gl/src/cli.ts", "packages/gh-gl/src/cli-impl.ts"],
       "rules": {
         "no-console": "off"
