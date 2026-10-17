@@ -1,5 +1,4 @@
 import { execa } from "execa";
-import path from "node:path";
 import { z } from "zod";
 
 import type { AskpassEnv } from "./askpass.js";
@@ -138,6 +137,20 @@ export async function resolveRef(dir: string, ref: string): Promise<string> {
   return stdout;
 }
 
+async function stageAll(dir: string): Promise<void> {
+  await execa("git", ["-C", dir, "add", "--all"]);
+}
+
+/**
+ * Commit the current index in the scratch repo at `dir`.
+ *
+ * @param dir - Scratch repo from {@link initScratchRepo}.
+ * @param message - Commit message body passed to `git commit -m`.
+ */
+export async function commitStagedChanges(dir: string, message: string): Promise<void> {
+  await execa("git", ["-C", dir, "commit", "-m", message]);
+}
+
 /**
  * Stage every change in the scratch repo's worktree and commit it.
  *
@@ -145,8 +158,8 @@ export async function resolveRef(dir: string, ref: string): Promise<string> {
  * @param message - Commit message body passed to `git commit -m`.
  */
 export async function commitAll(dir: string, message: string): Promise<void> {
-  await execa("git", ["-C", dir, "add", "--all"]);
-  await execa("git", ["-C", dir, "commit", "-m", message]);
+  await stageAll(dir);
+  await commitStagedChanges(dir, message);
 }
 
 /**
@@ -292,32 +305,11 @@ export async function extractTree(dir: string, ref: string, destDir: string): Pr
   }
 
   archive.stdout.pipe(extract.stdin);
-  await Promise.all([archive, extract]);
-}
+  const results = await Promise.allSettled([archive, extract]);
 
-/**
- * Fingerprint the current content of `sourceDir` as a git tree hash.
- *
- * Does not require `sourceDir` to be a git checkout. Stages it into a throwaway index backed by the
- * scratch repo at `dir`, so any directory on disk works.
- *
- * @param dir - Scratch repo from {@link initScratchRepo}, used only for its object store and index.
- * @param sourceDir - Directory whose current tree content should be hashed.
- * @returns Git tree hash for `sourceDir`'s current content.
- */
-export async function fingerprintDirectory(dir: string, sourceDir: string): Promise<string> {
-  const env = {
-    GIT_DIR: path.join(dir, ".git"),
-    GIT_WORK_TREE: sourceDir,
-    GIT_INDEX_FILE: path.join(dir, ".git", "gh-gl-fingerprint-index"),
-  };
-
-  await execa("git", ["add", "--all", "."], { cwd: sourceDir, env });
-
-  const { stdout } = await execa("git", ["write-tree"], {
-    cwd: sourceDir,
-    env,
-  });
-
-  return stdout;
+  for (const result of results) {
+    if (result.status === "rejected") {
+      throw result.reason;
+    }
+  }
 }

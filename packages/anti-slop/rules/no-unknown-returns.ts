@@ -2,7 +2,8 @@ import type { ESTree } from "@oxlint/plugins";
 
 import { defineRule } from "@oxlint/plugins";
 
-import { lexicalTypeParameterNames } from "../shared/lexical-type-parameters.ts";
+import { lexicalTypeParameterScopes } from "../shared/lexical-type-parameters.ts";
+import { createTypeAliasResolver } from "../shared/type-alias-resolver.ts";
 
 type FunctionWithReturnType =
   | ESTree.ArrowFunctionExpression
@@ -12,17 +13,6 @@ type FunctionWithReturnType =
   | ESTree.TSConstructorType
   | ESTree.TSFunctionType
   | ESTree.TSMethodSignature;
-
-/** Return the name of a simple referenced type alias. */
-function referencedAliasName(type: ESTree.TSType): string | null {
-  if (type.type === "TSParenthesizedType") return referencedAliasName(type.typeAnnotation);
-  if (type.type !== "TSTypeReference" || type.typeName.type !== "Identifier") return null;
-  return type.typeArguments === null ||
-    type.typeArguments === undefined ||
-    type.typeArguments.params.length === 0
-    ? type.typeName.name
-    : null;
-}
 
 /** Ban function contracts that return unknown instead of a parsed domain type. */
 export const noUnknownReturnsRule = defineRule({
@@ -37,82 +27,94 @@ export const noUnknownReturnsRule = defineRule({
         "This function exposes `unknown` to its caller. Parse the value at its boundary and return a named domain type.",
     },
   },
-  /** Register visitors that check function return types. */
+  /** Create visitors that detect functions returning `unknown`. */
   createOnce(context) {
-    const aliases = new Map<string, ESTree.TSTypeAliasDeclaration>();
-
-    /** Return whether a type resolves to `unknown`. */
-    const resolvesToUnknown = (
-      type: ESTree.TSType,
-      shadowedAliases: ReadonlySet<string>,
-      visited = new Set<string>(),
-    ): boolean => {
-      if (type.type === "TSUnknownKeyword") return true;
-      if (type.type === "TSParenthesizedType") {
-        return resolvesToUnknown(type.typeAnnotation, shadowedAliases, visited);
-      }
-      if (type.type === "TSUnionType") {
-        return type.types.some((member) => resolvesToUnknown(member, shadowedAliases, visited));
-      }
-      if (
-        type.type === "TSTypeReference" &&
-        type.typeName.type === "Identifier" &&
-        (type.typeName.name === "Promise" || type.typeName.name === "PromiseLike")
-      ) {
-        const value = type.typeArguments?.params[0];
-        return value !== undefined && resolvesToUnknown(value, shadowedAliases, visited);
-      }
-      const name = referencedAliasName(type);
-      if (name === null || visited.has(name) || shadowedAliases.has(name)) return false;
-      const alias = aliases.get(name);
-      if (
-        alias === undefined ||
-        (alias.typeParameters !== null && alias.typeParameters !== undefined)
-      ) {
-        return false;
-      }
-      const nextVisited = new Set(visited);
-      nextVisited.add(name);
-      return resolvesToUnknown(alias.typeAnnotation, shadowedAliases, nextVisited);
-    };
-
-    /** Report a function return type that resolves to `unknown`. */
-    const checkReturnType = (node: FunctionWithReturnType) => {
-      const annotation = node.returnType;
-      if (annotation === null || annotation === undefined) return;
-      if (
-        !resolvesToUnknown(
-          annotation.typeAnnotation,
-          lexicalTypeParameterNames(node, context.sourceCode.visitorKeys),
-        )
-      ) {
-        return;
-      }
-      context.report({ node: annotation.typeAnnotation, messageId: "unknownReturn" });
-    };
+    const aliases: ESTree.TSTypeAliasDeclaration[] = [];
+    const shadowingDeclarations: ESTree.Node[] = [];
+    const functions: FunctionWithReturnType[] = [];
 
     return {
-      /** Save the file's type environment for alias resolution. */
-      Program(node) {
-        aliases.clear();
-        for (const statement of node.body) {
-          const declaration =
-            statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
-          if (declaration?.type === "TSTypeAliasDeclaration") {
-            aliases.set(declaration.id.name, declaration);
+      /** Reset collected declarations before scanning the file. */
+      Program() {
+        aliases.length = 0;
+        shadowingDeclarations.length = 0;
+        functions.length = 0;
+      },
+      /** Collect aliases for return type resolution. */
+      TSTypeAliasDeclaration(node) {
+        aliases.push(node);
+      },
+      /** Collect interfaces that can shadow type aliases. */
+      TSInterfaceDeclaration(node) {
+        shadowingDeclarations.push(node);
+      },
+      /** Collect classes that can shadow type aliases. */
+      ClassDeclaration(node) {
+        if (node.id !== null) shadowingDeclarations.push(node);
+      },
+      /** Collect imports that can shadow type aliases. */
+      ImportDeclaration(node) {
+        shadowingDeclarations.push(node);
+      },
+      /** Collect arrow functions for return type checks. */
+      ArrowFunctionExpression(node) {
+        functions.push(node);
+      },
+      /** Collect function declarations for return type checks. */
+      FunctionDeclaration(node) {
+        functions.push(node);
+      },
+      /** Collect function expressions for return type checks. */
+      FunctionExpression(node) {
+        functions.push(node);
+      },
+      /** Collect call signatures for return type checks. */
+      TSCallSignatureDeclaration(node) {
+        functions.push(node);
+      },
+      /** Collect construct signatures for return type checks. */
+      TSConstructSignatureDeclaration(node) {
+        functions.push(node);
+      },
+      /** Collect constructor types for return type checks. */
+      TSConstructorType(node) {
+        functions.push(node);
+      },
+      /** Collect ambient functions for return type checks. */
+      TSDeclareFunction(node) {
+        functions.push(node);
+      },
+      /** Collect functions without bodies for return type checks. */
+      TSEmptyBodyFunctionExpression(node) {
+        functions.push(node);
+      },
+      /** Collect function types for return type checks. */
+      TSFunctionType(node) {
+        functions.push(node);
+      },
+      /** Collect method signatures for return type checks. */
+      TSMethodSignature(node) {
+        functions.push(node);
+      },
+      /** Resolve collected return types after reading all declarations. */
+      "Program:exit"() {
+        const resolver = createTypeAliasResolver(aliases, shadowingDeclarations);
+        for (const node of functions) {
+          const annotation = node.returnType;
+          if (annotation === null || annotation === undefined) continue;
+          if (
+            !resolver.resolvesToUnknown(annotation.typeAnnotation, {
+              includeUnions: true,
+              includePromises: true,
+              typeParameterScopes: (type) =>
+                lexicalTypeParameterScopes(type, context.sourceCode.visitorKeys),
+            })
+          ) {
+            continue;
           }
+          context.report({ node: annotation.typeAnnotation, messageId: "unknownReturn" });
         }
       },
-      ArrowFunctionExpression: checkReturnType,
-      FunctionDeclaration: checkReturnType,
-      FunctionExpression: checkReturnType,
-      TSCallSignatureDeclaration: checkReturnType,
-      TSConstructSignatureDeclaration: checkReturnType,
-      TSConstructorType: checkReturnType,
-      TSDeclareFunction: checkReturnType,
-      TSEmptyBodyFunctionExpression: checkReturnType,
-      TSFunctionType: checkReturnType,
-      TSMethodSignature: checkReturnType,
     };
   },
 });

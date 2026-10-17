@@ -18,8 +18,33 @@ tester.run("anti-slop/no-unknown-returns", noUnknownReturnsRule, {
     "function cause(): { cause: unknown } { return { cause: input }; }",
     "type Result = { value: unknown }; function load(): Result { return result; }",
     "function load(): Promise<User> { return promise; }",
+    "type Promise<T> = { value: T }; function load(): Promise<unknown> { return input; }",
+    "type Value = unknown; function outer() { type Value = string; function inner(): Value { return value; } }",
+    "type First = Second; type Second = First; function load(): First { return value; }",
+    "type Value = unknown; function load<Value>(): Promise<Value> { return promise; }",
+    "function load<Promise>(): Promise<unknown> { return promise; }",
+    "interface Promise<T> { value: T } function load(): Promise<unknown> { return promise; }",
+    "class PromiseLike<T> { value!: T } function load(): PromiseLike<unknown> { return promise; }",
+    "import { Promise } from './custom.js'; function load(): Promise<unknown> { return promise; }",
+    "type Value = unknown; function outer() { type Value = string; function load(): Value { return value; } }",
   ],
   invalid: [
+    {
+      code: "type Value = unknown; type Result = Value; function load<Value>(): Result { return input; }",
+      errors: [error],
+    },
+    {
+      code: "type Later = First; export type First = unknown; function load(): Later { return input; }",
+      errors: [error],
+    },
+    {
+      code: "type First = Second; type Second = unknown; function load(): First { return input; }",
+      errors: [error],
+    },
+    {
+      code: "function outer<Value>() { { type Value = unknown; function inner(): Value { return input; } } }",
+      errors: [error],
+    },
     { code: "function load(): unknown { return input; }", errors: [error] },
     { code: "const load = (): unknown => input;", errors: [error] },
     { code: "type Loader = () => unknown;", errors: [error] },

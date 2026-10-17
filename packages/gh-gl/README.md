@@ -76,6 +76,14 @@ GitHub's tree as-is, on top of a rebuild — it does not validate their
 content. An invalid `.gitlab-ci.yml` still gets copied and pushed; GitLab
 only reports the problem when it tries to run a pipeline against it.
 
+The overlay includes files ignored by Git. Entries named `.git` are excluded.
+Overlay files replace matching upstream paths. Git modes and symlink targets are
+preserved. Git filters do not change captured overlay bytes.
+
+Each rebuild attempt captures the overlay once. The fingerprint and committed
+files use that capture. Keep the directory stable during capture. A push retry
+captures the directory again.
+
 A `.gitlab-ci.yml` needs at least one runnable job, not just `stages`:
 
 ```yaml

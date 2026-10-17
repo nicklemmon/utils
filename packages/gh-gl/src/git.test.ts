@@ -11,7 +11,6 @@ import {
   detectDefaultBranch,
   extractTree,
   fetchRef,
-  fingerprintDirectory,
   initScratchRepo,
   abortMergeConflict,
   checkoutBranch,
@@ -126,59 +125,6 @@ describe("extractTree", () => {
 
     expect(readFileSync(path.join(destDir, "README.md"), "utf8")).toBe("hello");
     expect(readFileSync(path.join(destDir, "src/index.ts"), "utf8")).toBe("export {};");
-  });
-});
-
-describe("fingerprintDirectory", () => {
-  const cleanups: Array<() => void> = [];
-
-  afterEach(() => {
-    for (const cleanup of cleanups.splice(0)) {
-      cleanup();
-    }
-  });
-
-  it("returns the same fingerprint for the same content", async () => {
-    const scratchDir = mkdtempSync(path.join(tmpdir(), "gh-gl-scratch-"));
-    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
-
-    cleanups.push(() => {
-      rmSync(scratchDir, { recursive: true, force: true });
-      rmSync(overlayDir, { recursive: true, force: true });
-    });
-    await initScratchRepo(scratchDir);
-
-    const { writeFileSync } = await import("node:fs");
-
-    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
-
-    const first = await fingerprintDirectory(scratchDir, overlayDir);
-    const second = await fingerprintDirectory(scratchDir, overlayDir);
-
-    expect(first).toBe(second);
-  });
-
-  it("returns a different fingerprint when content changes", async () => {
-    const scratchDir = mkdtempSync(path.join(tmpdir(), "gh-gl-scratch-"));
-    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
-
-    cleanups.push(() => {
-      rmSync(scratchDir, { recursive: true, force: true });
-      rmSync(overlayDir, { recursive: true, force: true });
-    });
-    await initScratchRepo(scratchDir);
-
-    const { writeFileSync } = await import("node:fs");
-
-    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
-
-    const before = await fingerprintDirectory(scratchDir, overlayDir);
-
-    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: [build]\n");
-
-    const after = await fingerprintDirectory(scratchDir, overlayDir);
-
-    expect(before).not.toBe(after);
   });
 });
 

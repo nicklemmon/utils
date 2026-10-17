@@ -201,11 +201,17 @@ installed.
 hand, so there's no independent human history to destroy. The tree is always
 exactly `GitHub ∪ overlay`, deterministically, every run.
 
-**Overlay fingerprint:** computed via git plumbing (stage the overlay directory
-into a throwaway index, `git write-tree`) rather than assuming the overlay
-directory is itself a git checkout with a readable `HEAD`. This keeps the CLI's
-"overlay is just a directory, origin unknown" contract intact regardless of how
-that directory got onto disk — a git checkout, an extracted archive, anything.
+**Overlay fingerprint:** each rebuild attempt captures regular files and symlinks
+from the local directory into Git blobs. Entries named `.git` are excluded.
+Git ignore rules and filters do not change captured content. An isolated index
+combines those blobs into a tree. The tree hash is the fingerprint. Application
+uses the captured blobs and modes, without reading the source directory again.
+The final index starts with GitHub's tree and replaces paths with captured overlay
+entries. This keeps overlay attributes from changing upstream blobs.
+
+The directory does not need to be a Git checkout. Capture does not provide an
+atomic filesystem snapshot. Keep the directory stable while capture runs.
+A rejected-push retry captures the directory again.
 
 ## Merge path (prototype branches)
 
@@ -317,6 +323,7 @@ details rather than just branch on the exit code.
 
 Created fresh per run, under the OS temp dir, with a unique name (so concurrent
 runs — e.g. two branches syncing in parallel CI jobs — never collide). **Always
-deleted when the run finishes, success or failure alike.** No debug-preservation
-special case on error: simpler behavior, no disk accumulation on long-lived hosts,
-accepted over the (minor) loss of leftover-directory forensics on failure.
+deleted when the run finishes, success or failure alike.** Cleanup also runs when resource initialization fails. Helpers stay alive until
+all Git work has settled. Cleanup attempts every allocated resource. If work and
+cleanup both fail, the error retains both failures. A cleanup failure after
+successful work is an error and produces exit code `2`.
