@@ -1,4 +1,5 @@
-/* oxlint-disable typescript/prefer-readonly-parameter-types -- XState supplies mutable callback parameter types. */
+import type { DoneActorEvent, ErrorActorEvent } from "xstate";
+
 import { assign, createActor, fromPromise, setup, toPromise } from "xstate";
 import { z } from "zod";
 
@@ -18,6 +19,10 @@ type Context = Readonly<{
   plan: ChangesetPlan | undefined;
   error: string | undefined;
 }>;
+
+type ContextInput = Readonly<{ context: Context }>;
+type CompletionInput<Output> = Readonly<{ event: Readonly<DoneActorEvent<Output>> }>;
+type FailureInput = Readonly<{ event: Readonly<ErrorActorEvent> }>;
 
 /** Terminal outcome of a changeset run. Preview runs never publish. */
 export type ChangesetResult = {
@@ -89,27 +94,38 @@ export async function runChangesets(
       loading: {
         invoke: {
           src: "load",
-          onDone: { target: "planning", actions: assign({ source: ({ event }) => event.output }) },
+          onDone: {
+            target: "planning",
+            actions: assign({
+              source: ({ event }: CompletionInput<ChangesetSource>) => event.output,
+            }),
+          },
           onError: {
             target: "failed",
-            actions: assign({ error: ({ event }) => describeError(event.error) }),
+            actions: assign({ error: ({ event }: FailureInput) => describeError(event.error) }),
           },
         },
       },
       planning: {
         invoke: {
           src: "plan",
-          input: ({ context }) => requireSource(context),
-          onDone: { target: "deciding", actions: assign({ plan: ({ event }) => event.output }) },
+          input: ({ context }: ContextInput) => requireSource(context),
+          onDone: {
+            target: "deciding",
+            actions: assign({ plan: ({ event }: CompletionInput<ChangesetPlan>) => event.output }),
+          },
           onError: {
             target: "failed",
-            actions: assign({ error: ({ event }) => describeError(event.error) }),
+            actions: assign({ error: ({ event }: FailureInput) => describeError(event.error) }),
           },
         },
       },
       deciding: {
         always: [
-          { guard: ({ context }): boolean => !requirePlan(context).changed, target: "unchanged" },
+          {
+            guard: ({ context }: ContextInput): boolean => !requirePlan(context).changed,
+            target: "unchanged",
+          },
           { guard: (): boolean => mode === "preview", target: "preview" },
           { guard: (): boolean => mode === "check", target: "outdated" },
           { target: "verifying" },
@@ -118,22 +134,22 @@ export async function runChangesets(
       verifying: {
         invoke: {
           src: "verify",
-          input: ({ context }) => requireSource(context),
+          input: ({ context }: ContextInput) => requireSource(context),
           onDone: "publishing",
           onError: {
             target: "failed",
-            actions: assign({ error: ({ event }) => describeError(event.error) }),
+            actions: assign({ error: ({ event }: FailureInput) => describeError(event.error) }),
           },
         },
       },
       publishing: {
         invoke: {
           src: "publish",
-          input: ({ context }) => context,
+          input: ({ context }: ContextInput) => context,
           onDone: "published",
           onError: {
             target: "failed",
-            actions: assign({ error: ({ event }) => describeError(event.error) }),
+            actions: assign({ error: ({ event }: FailureInput) => describeError(event.error) }),
           },
         },
       },

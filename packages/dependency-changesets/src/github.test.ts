@@ -1,4 +1,3 @@
-/* oxlint-disable typescript/prefer-readonly-parameter-types -- Fetch and Response use mutable library types in this API fixture. */
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -14,7 +13,7 @@ const headTree = "d".repeat(40);
 const createdCommit = "f".repeat(40);
 const prefix = "https://api.github.com/repos/owner/repo";
 
-type Call = { path: string; method: string; body: string | undefined };
+type Call = Readonly<{ path: string; method: string; body: string | undefined }>;
 type Fixture = {
   options: GitHubOptions;
   responses: Map<string, Response>;
@@ -56,7 +55,7 @@ function fixture(): Fixture {
     path: "packages/public/package.json",
     sha: "4".repeat(40),
     content: '{"name":"public","dependencies":{"execa":"^10.1.0"}}',
-  };
+  } as const;
   for (const file of [...files, updated]) {
     responses.set(
       `/git/blobs/${file.sha}`,
@@ -84,6 +83,7 @@ function fixture(): Fixture {
       })),
     }),
   );
+  // oxlint-disable-next-line typescript/prefer-readonly-parameter-types -- RequestInit is the injected fetch library contract.
   const request: NonNullable<GitHubOptions["request"]> = async (input, init) => {
     const path =
       input === "https://api.github.com/graphql" ? "/graphql" : input.slice(prefix.length);
