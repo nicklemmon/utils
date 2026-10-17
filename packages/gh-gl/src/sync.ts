@@ -275,6 +275,40 @@ async function runMerge(
   return { kind: "merged", branch, dryRun: false };
 }
 
+type DefaultBranchLookup = (
+  remoteUrl: string,
+  askpassEnv: AskpassEnv | undefined,
+) => Promise<string | undefined>;
+
+/**
+ * Detect both remote branches before sync uses either result.
+ *
+ * Waiting for both lookups keeps both credential helpers alive if one lookup fails while the other
+ * still needs its helper.
+ *
+ * @param githubUrl - GitHub remote URL.
+ * @param gitlabUrl - GitLab remote URL.
+ * @param askpass - Live credential environments for both remotes.
+ * @param lookup - Branch lookup operation. The default uses Git's remote HEAD lookup.
+ * @returns The GitHub and GitLab default branch names.
+ */
+export async function detectRemoteDefaultBranches(
+  githubUrl: string,
+  gitlabUrl: string,
+  askpass: SyncAskpass,
+  lookup: DefaultBranchLookup = detectDefaultBranch,
+): Promise<Readonly<{ github: string | undefined; gitlab: string | undefined }>> {
+  const [githubBranch, gitlabBranch] = await Promise.allSettled([
+    lookup(githubUrl, askpass.github),
+    lookup(gitlabUrl, askpass.gitlab),
+  ]);
+
+  if (githubBranch.status === "rejected") throw githubBranch.reason;
+  if (gitlabBranch.status === "rejected") throw gitlabBranch.reason;
+
+  return { github: githubBranch.value, gitlab: gitlabBranch.value };
+}
+
 /**
  * Run one `gh-gl sync`.
  *
@@ -286,16 +320,8 @@ async function runMerge(
  */
 export async function sync(options: Readonly<SyncOptions>): Promise<SyncOutcome> {
   const outcome = await withSyncAskpass(options, async (askpass): Promise<SyncOutcome> => {
-    const [githubBranch, gitlabBranch] = await Promise.allSettled([
-      detectDefaultBranch(options.githubUrl, askpass.github),
-      detectDefaultBranch(options.gitlabUrl, askpass.gitlab),
-    ]);
-
-    if (githubBranch.status === "rejected") throw githubBranch.reason;
-    if (gitlabBranch.status === "rejected") throw gitlabBranch.reason;
-
-    const githubDefaultBranch = githubBranch.value;
-    const gitlabDefaultBranch = gitlabBranch.value;
+    const { github: githubDefaultBranch, gitlab: gitlabDefaultBranch } =
+      await detectRemoteDefaultBranches(options.githubUrl, options.gitlabUrl, askpass);
 
     if (githubDefaultBranch === undefined) {
       throw new Error(

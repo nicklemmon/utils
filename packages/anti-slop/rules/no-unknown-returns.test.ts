@@ -7,6 +7,7 @@ const error = { messageId: "unknownReturn" };
 
 tester.run("anti-slop/no-unknown-returns", noUnknownReturnsRule, {
   valid: [
+    "type Value = string; switch (((): Value => input)()) { case '': type Value = unknown; break; }",
     "type ImportedValue = unknown;",
     "function parse(): ImportedValue { return input; }",
     "function parse(): User { return user; }",
@@ -27,8 +28,14 @@ tester.run("anti-slop/no-unknown-returns", noUnknownReturnsRule, {
     "class PromiseLike<T> { value!: T } function load(): PromiseLike<unknown> { return promise; }",
     "import { Promise } from './custom.js'; function load(): Promise<unknown> { return promise; }",
     "type Value = unknown; function outer() { type Value = string; function load(): Value { return value; } }",
+    "type Value = string; function outer() { switch (input) { case 0: type Value = unknown; break; } function load(): Value { return value; } }",
+    "type Value = unknown; function outer() { switch (input) { case 0: type Value = string; function first(): Value { return value; } break; case 1: function second(): Value { return value; } } }",
   ],
   invalid: [
+    {
+      code: "type Value = unknown; switch (((): Value => input)()) { case '': type Value = string; break; }",
+      errors: [error],
+    },
     {
       code: "type Value = unknown; type Result = Value; function load<Value>(): Result { return input; }",
       errors: [error],
@@ -58,6 +65,14 @@ tester.run("anti-slop/no-unknown-returns", noUnknownReturnsRule, {
     },
     {
       code: "type Item = unknown; type Fallback<Input> = Input extends infer Item ? string : () => Item;",
+      errors: [error],
+    },
+    {
+      code: "type Value = unknown; function outer() { switch (input) { case 0: type Value = string; break; } function load(): Value { return value; } }",
+      errors: [error],
+    },
+    {
+      code: "function outer() { type Value = unknown; switch (input) { case 0: function inner(): Value { return value; } } }",
       errors: [error],
     },
   ],

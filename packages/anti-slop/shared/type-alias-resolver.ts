@@ -15,13 +15,26 @@ type TypeAliasResolver = {
   resolvesToUnknown(type: ESTree.TSType, policy: TypeAliasPolicy): boolean;
 };
 
+function isSwitchDiscriminant(node: ESTree.Node, switchStatement: ESTree.Node): boolean {
+  let current: ESTree.Node = node;
+  while (current.parent !== null && current.parent !== switchStatement) {
+    current = current.parent;
+  }
+  return (
+    current.parent === switchStatement &&
+    switchStatement.type === "SwitchStatement" &&
+    current === switchStatement.discriminant
+  );
+}
+
 function lexicalScope(node: ESTree.Node): ESTree.Node {
   let current: ESTree.Node | null = node;
   while (
     current !== null &&
     current.type !== "Program" &&
     current.type !== "BlockStatement" &&
-    current.type !== "TSModuleBlock"
+    current.type !== "TSModuleBlock" &&
+    (current.type !== "SwitchStatement" || isSwitchDiscriminant(node, current))
   ) {
     current = current.parent;
   }
@@ -34,7 +47,8 @@ function parentLexicalScope(node: ESTree.Node): ESTree.Node | null {
     current !== null &&
     current.type !== "Program" &&
     current.type !== "BlockStatement" &&
-    current.type !== "TSModuleBlock"
+    current.type !== "TSModuleBlock" &&
+    (current.type !== "SwitchStatement" || isSwitchDiscriminant(node, current))
   ) {
     current = current.parent;
   }

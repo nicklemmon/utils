@@ -1,15 +1,5 @@
 import { execa } from "execa";
-import {
-  chmod,
-  lstat,
-  mkdir,
-  readdir,
-  readFile,
-  readlink,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { chmod, lstat, mkdir, readdir, readFile, readlink, rm, symlink } from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 
@@ -18,6 +8,7 @@ export type OverlaySnapshot = Readonly<{ tree: string; fingerprint: string }>;
 
 type TreeEntry = Readonly<{ mode: string; objectId: string; path: string; type: string }>;
 const FsErrorSchema = z.object({ code: z.string() });
+const MAX_SYMLINK_TARGET_BYTES = 4096;
 const TreeEntrySchema = z.object({
   mode: z.string(),
   type: z.string(),
@@ -199,22 +190,29 @@ async function applyOverlay(
 
     // oxlint-disable-next-line eslint/no-await-in-loop -- Apply paths in order to handle directory conflicts.
     await rm(destination, { recursive: true, force: true });
-    // oxlint-disable-next-line eslint/no-await-in-loop -- Read and apply one captured blob at a time.
-    const { stdout } = await execa("git", ["-C", scratchDir, "cat-file", "blob", entry.objectId], {
-      encoding: "buffer",
-      stripFinalNewline: false,
-    });
-
     if (entry.type !== "blob") {
       throw new Error(`Unsupported overlay object type "${entry.type}" at "${entry.path}".`);
     }
 
     if (entry.mode === "120000") {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- Read each symlink target before continuing.
+      const { stdout } = await execa(
+        "git",
+        ["-C", scratchDir, "cat-file", "blob", entry.objectId],
+        {
+          encoding: "buffer",
+          maxBuffer: { stdout: MAX_SYMLINK_TARGET_BYTES },
+          stripFinalNewline: false,
+        },
+      );
       // oxlint-disable-next-line eslint/no-await-in-loop -- Create each destination entry before continuing.
       await symlink(Buffer.from(stdout), destination);
     } else {
-      // oxlint-disable-next-line eslint/no-await-in-loop -- Create each destination entry before continuing.
-      await writeFile(destination, Buffer.from(stdout));
+      // oxlint-disable-next-line eslint/no-await-in-loop -- Stream one captured blob before continuing.
+      await execa("git", ["-C", scratchDir, "cat-file", "blob", entry.objectId], {
+        buffer: { stdout: false },
+        stdout: { file: destination },
+      });
       // oxlint-disable-next-line eslint/no-await-in-loop -- Apply mode after writing this file.
       await chmod(destination, entry.mode === "100755" ? 0o755 : 0o644);
     }

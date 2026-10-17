@@ -13,7 +13,10 @@ import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
+import type { AskpassEnv } from "./askpass.js";
+
 import { withSyncAskpass } from "./resources.js";
+import { detectRemoteDefaultBranches } from "./sync.js";
 import { createBareFixtureRepo, createFixtureRepo } from "./test-support/fixture-repo.js";
 
 type Signal<Value> = Readonly<{ promise: Promise<Value>; resolve: (value: Value) => void }>;
@@ -90,6 +93,76 @@ describe("sync resource acceptance", () => {
     }
     expect(await pending).toBe("lifetime-test-token");
     expect(existsSync(helperPath)).toBe(false);
+  });
+
+  it("retains the held lookup helper after its sibling fails", async () => {
+    type BranchLookup = (url: string, env: AskpassEnv | undefined) => Promise<string | undefined>;
+
+    const gitlabEntered = signal<null>();
+    const githubFailed = signal<null>();
+    const releaseGitlab = signal<null>();
+    let gitlabHelper = "";
+    let gitlabToken: string | undefined;
+    let operationError: unknown;
+    let settled = false;
+    const failGithub: BranchLookup = async (): Promise<string | undefined> => {
+      await gitlabEntered.promise;
+      githubFailed.resolve(null);
+      throw new Error("forced lookup failure");
+    };
+    const holdGitlab: BranchLookup = async (_url, env): Promise<string | undefined> => {
+      const parsedEnv = askpassEnvSchema.parse(env);
+      gitlabHelper = parsedEnv.GIT_ASKPASS;
+      gitlabEntered.resolve(null);
+      await releaseGitlab.promise;
+
+      const response = await execa(parsedEnv.GIT_ASKPASS, ["Password:"], { env: parsedEnv });
+      gitlabToken = response.stdout;
+      return "main";
+    };
+    let lookupHandler = failGithub;
+    const lookup: BranchLookup = async (url, env): Promise<string | undefined> => {
+      const handler = lookupHandler;
+      lookupHandler = holdGitlab;
+      const result = await handler(url, env);
+      return result;
+    };
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Parse the async rejection at this error boundary.
+    const captureFailure = (error: unknown): "failure" => {
+      settled = true;
+      operationError = z.instanceof(Error).parse(error);
+      return "failure";
+    };
+
+    const pending = withSyncAskpass(
+      { githubToken: "github-lifetime-token", gitlabToken: "gitlab-lifetime-token" },
+      async (askpass) => {
+        await detectRemoteDefaultBranches("fixture:github", "fixture:gitlab", askpass, lookup);
+      },
+    ).then(() => {
+      settled = true;
+      return "success";
+    }, captureFailure);
+
+    await githubFailed.promise;
+    // Both lookups are controlled promises. This event-loop turn drains every rejection and
+    // cleanup continuation from the failed lookup before the held GitLab lookup is released.
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+
+    const beforeRelease = {
+      settled,
+      helperExists: existsSync(gitlabHelper),
+    };
+
+    releaseGitlab.resolve(null);
+    expect(await pending).toBe("failure");
+
+    expect(beforeRelease).toEqual({ settled: false, helperExists: true });
+    expect(operationError).toEqual(new Error("forced lookup failure"));
+    expect(gitlabToken).toBe("gitlab-lifetime-token");
+    expect(existsSync(gitlabHelper)).toBe(false);
   });
 
   it("removes scratch and credential helpers when Git initialization fails", async () => {

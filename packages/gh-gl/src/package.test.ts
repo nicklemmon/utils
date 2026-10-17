@@ -39,7 +39,7 @@ describe("published package", () => {
       env: { npm_config_cache: npmCacheDir },
     });
     const packOutput: unknown = JSON.parse(stdout);
-    const packedPackage = PackOutputSchema.parse(packOutput);
+    const [packedPackage] = PackOutputSchema.parse(packOutput);
 
     expect(packedPackage.files.map((file) => file.path)).toContain(".env.schema");
   });

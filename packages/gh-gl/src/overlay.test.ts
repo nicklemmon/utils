@@ -14,6 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import {
   commitAll,
@@ -81,6 +82,64 @@ describe("captured overlay", () => {
     expect(readFileSync(path.join(scratchDir, "deleted-after-capture.txt"), "utf8")).toBe(
       "captured\n",
     );
+  });
+
+  it("captures and applies regular files larger than 100 MB", async () => {
+    const scratchDir = await scratch();
+    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
+    cleanups.push(() => {
+      rmSync(overlayDir, { recursive: true, force: true });
+    });
+    const payload = Buffer.alloc(100_000_001, 0xa5);
+    payload.set(Buffer.from("overlay-start"), 0);
+    payload.set(Buffer.from("overlay-end"), payload.length - 11);
+    const overlayFile = path.join(overlayDir, "large.bin");
+    writeFileSync(overlayFile, payload);
+    const { stdout: expectedBlob } = await execa("git", [
+      "-C",
+      scratchDir,
+      "hash-object",
+      "--no-filters",
+      overlayFile,
+    ]);
+
+    const snapshot = await captureOverlay(scratchDir, overlayDir);
+    await applyCapturedOverlay(scratchDir, snapshot, "HEAD");
+
+    const { stdout: appliedBlob } = await execa("git", [
+      "-C",
+      scratchDir,
+      "hash-object",
+      "--no-filters",
+      path.join(scratchDir, "large.bin"),
+    ]);
+    expect(appliedBlob).toBe(expectedBlob);
+  }, 30_000);
+
+  it("settles the blob stream when Git cannot read a captured object", async () => {
+    const scratchDir = await scratch();
+    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
+    cleanups.push(() => {
+      rmSync(overlayDir, { recursive: true, force: true });
+    });
+    writeFileSync(path.join(overlayDir, "missing-blob.bin"), "captured bytes");
+    const snapshot = await captureOverlay(scratchDir, overlayDir);
+    const { stdout: treeEntry } = await execa("git", ["-C", scratchDir, "ls-tree", snapshot.tree]);
+    const parsedTreeEntry = z
+      .string()
+      .regex(/^100644 blob [0-9a-f]{40}\tmissing-blob\.bin$/u)
+      .parse(treeEntry);
+    const blobId = z
+      .string()
+      .regex(/^[0-9a-f]{40}$/u)
+      .parse(parsedTreeEntry.slice(12, 52));
+    const blobPath = path.join(scratchDir, ".git", "objects", blobId.slice(0, 2), blobId.slice(2));
+    rmSync(blobPath);
+
+    await expect(applyCapturedOverlay(scratchDir, snapshot, "HEAD")).rejects.toMatchObject({
+      stderr: expect.stringContaining("bad file"),
+      exitCode: 128,
+    });
   });
 
   it("changes the fingerprint when only the executable bit changes", async () => {
