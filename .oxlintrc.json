@@ -16,6 +16,7 @@
   },
   "ignorePatterns": ["**/dist/**", "**/coverage/**", "**/.turbo/**", "**/node_modules/**"],
   "rules": {
+    "anti-slop/no-cross-package-internals": "error",
     "import/no-commonjs": "error",
     "import/extensions": ["error", "always", { "ignorePackages": true }],
     "import/no-default-export": "error",
