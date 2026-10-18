@@ -7,6 +7,7 @@ import { planChangeset } from "./plan.ts";
 type TestSource = { -readonly [Key in keyof ChangesetSource]: ChangesetSource[Key] };
 type TestChange = { -readonly [Key in keyof PackageChange]: PackageChange[Key] };
 
+/** Build mutable source data for changeset plan tests. */
 function source(packages: readonly PackageChange[] = []): TestSource {
   return {
     number: 40,
@@ -18,6 +19,7 @@ function source(packages: readonly PackageChange[] = []): TestSource {
   };
 }
 
+/** Build a dependency range change for a package manifest. */
 function update(
   name: string,
   options: Readonly<{ private?: boolean; dev?: boolean }> = {},

@@ -12,6 +12,7 @@ type ParameterOwner =
   | ESTree.TSFunctionType
   | ESTree.TSMethodSignature;
 
+/** Return the type annotation for a function parameter. */
 function parameterAnnotation(parameter: Parameter): ESTree.TSTypeAnnotation | null | undefined {
   if (parameter.type === "TSParameterProperty") {
     return parameterAnnotation(parameter.parameter);
@@ -25,6 +26,7 @@ function parameterAnnotation(parameter: Parameter): ESTree.TSTypeAnnotation | nu
   return parameter.typeAnnotation;
 }
 
+/** Return the source text for a parameter's name. */
 function parameterName(parameter: Parameter, sourceText: string): string {
   if (parameter.type === "TSParameterProperty") {
     return parameterName(parameter.parameter, sourceText);
@@ -53,7 +55,9 @@ export const noUnknownParametersRule = defineRule({
         "Parameter `{{parameter}}` leaves input unparsed. Accept a named domain type; run the expected schema or parser at the I/O boundary before calling this function.",
     },
   },
+  /** Register visitors that check function parameters. */
   createOnce(context) {
+    /** Report parameters with disallowed `unknown` types. */
     const checkParameters = (node: ParameterOwner) => {
       for (const parameter of node.params) {
         const annotation = parameterAnnotation(parameter);

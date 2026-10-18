@@ -30,6 +30,7 @@ export async function createFixtureRepo(): Promise<FixtureRepo> {
   // so it needs this to accept a push the same way a bare remote would.
   await execa("git", ["-C", dir, "config", "receive.denyCurrentBranch", "updateInstead"]);
 
+  /** Write files into the fixture repo and commit them. */
   async function commit(message: string, files: Readonly<Record<string, string>>): Promise<string> {
     for (const [relativePath, content] of Object.entries(files)) {
       const filePath = path.join(dir, relativePath);
@@ -46,6 +47,7 @@ export async function createFixtureRepo(): Promise<FixtureRepo> {
     return stdout;
   }
 
+  /** Remove the fixture repo from disk. */
   function cleanup(): void {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -84,6 +86,7 @@ export async function createBareFixtureRepo(
 
   return {
     dir,
+    /** Remove the bare fixture repository. */
     cleanup: () => {
       rmSync(dir, { recursive: true, force: true });
     },
@@ -143,6 +146,7 @@ export async function createEmptyBareFixtureRepo(): Promise<BareFixtureRepo> {
 
   return {
     dir,
+    /** Remove the empty bare fixture repository. */
     cleanup: () => {
       rmSync(dir, { recursive: true, force: true });
     },

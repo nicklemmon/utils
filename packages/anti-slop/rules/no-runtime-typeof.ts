@@ -12,18 +12,21 @@ type JsonRecord = {
   readonly allowInTypeGuards?: boolean;
 };
 
+/** Return whether a value is a record in the JSON rule options. */
 function isJsonRecord(
   option: JsonRecord | string | number | boolean | null | undefined | readonly unknown[],
 ): option is JsonRecord {
   return Object.prototype.toString.call(option) === "[object Object]";
 }
 
+/** Return whether the rule option allows this `typeof` check. */
 function isTypeofRuleOption(
   option: JsonRecord | string | number | boolean | null | undefined | readonly unknown[],
 ): option is TypeofRuleOption {
   return isJsonRecord(option) && "allowInTypeGuards" in option;
 }
 
+/** Return whether a node is a runtime function declaration or expression. */
 function isRuntimeFunction(node: ESTree.Node): node is RuntimeFunction {
   return (
     node.type === "ArrowFunctionExpression" ||
@@ -32,6 +35,7 @@ function isRuntimeFunction(node: ESTree.Node): node is RuntimeFunction {
   );
 }
 
+/** Return whether a `typeof` check is already inside a type guard. */
 function isInsideTypeGuard(node: ESTree.Node): boolean {
   let current: ESTree.Node | null = node.parent;
   while (current !== null && current.type !== "Program") {
@@ -66,8 +70,10 @@ export const noRuntimeTypeofRule = defineRule({
     ],
     defaultOptions: [{ allowInTypeGuards: false }],
   },
+  /** Register a visitor that checks runtime `typeof` expressions. */
   createOnce(context) {
     return {
+      /** Report a `typeof` check on an unparsed value. */
       UnaryExpression(node) {
         const option = context.options[0];
         const allowInTypeGuards = isTypeofRuleOption(option) && option.allowInTypeGuards;

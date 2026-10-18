@@ -12,6 +12,7 @@ type Fixture = {
   calls: string[];
 };
 
+/** Build mutable services and source data for machine tests. */
 function fixture(): Fixture {
   const calls: string[] = [];
   const source: Fixture["source"] = {
@@ -32,15 +33,18 @@ function fixture(): Fixture {
     source,
     calls,
     services: {
+      /** Return the source fixture. */
       load: async () => {
         calls.push("load");
         await Promise.resolve();
         return source;
       },
+      /** Record verification of the fixture source. */
       verify: async (input) => {
         calls.push(`verify:${input.head}`);
         await Promise.resolve();
       },
+      /** Record publication of the fixture plan. */
       publish: async (input, plan) => {
         calls.push(`publish:${input.head}:${plan.path}`);
         await Promise.resolve();

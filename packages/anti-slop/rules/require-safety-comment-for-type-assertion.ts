@@ -12,6 +12,7 @@ const commentOwnerKinds = new Set([
   "VariableDeclaration",
 ]);
 
+/** Return whether an assertion uses `as const` or `<const>`. */
 function isConstAssertion(node: TypeAssertion): boolean {
   return (
     node.typeAnnotation.type === "TSTypeReference" &&
@@ -20,6 +21,7 @@ function isConstAssertion(node: TypeAssertion): boolean {
   );
 }
 
+/** Return whether a nearby comment explains the assertion's invariant. */
 function hasSafetyComment(sourceCode: SourceCode, node: TypeAssertion): boolean {
   let current: ESTree.Node = node;
   while (true) {
@@ -48,7 +50,9 @@ export const requireSafetyCommentForTypeAssertionRule = defineRule({
         "This type assertion has no `SAFETY:` justification. State the checked invariant immediately before the assertion or its containing statement.",
     },
   },
+  /** Register visitors that check type assertions. */
   createOnce(context) {
+    /** Report a non-const assertion without an invariant comment. */
     const checkAssertion = (node: TypeAssertion) => {
       if (isConstAssertion(node) || hasSafetyComment(context.sourceCode, node)) return;
       context.report({ node, messageId: "missingSafetyComment" });

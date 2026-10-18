@@ -2,6 +2,7 @@ import type { ESTree } from "@oxlint/plugins";
 
 import { defineRule } from "@oxlint/plugins";
 
+/** Return the name of a simple referenced type alias. */
 function referencedAliasName(type: ESTree.TSType): string | null {
   if (type.type === "TSParenthesizedType") return referencedAliasName(type.typeAnnotation);
   if (type.type !== "TSTypeReference" || type.typeName.type !== "Identifier") return null;
@@ -25,9 +26,11 @@ export const noUnknownTypeAliasesRule = defineRule({
         "Type alias `{{alias}}` hides `unknown`. Keep `unknown` explicit at the parsing boundary or on an allowed `cause` field; otherwise use the parsed owner type.",
     },
   },
+  /** Register a visitor that checks type aliases. */
   createOnce(context) {
     const aliases = new Map<string, ESTree.TSTypeAliasDeclaration>();
 
+    /** Return whether a type alias resolves to `unknown`. */
     const resolvesToUnknown = (type: ESTree.TSType, visited = new Set<string>()): boolean => {
       if (type.type === "TSUnknownKeyword") return true;
       if (type.type === "TSParenthesizedType")
@@ -47,6 +50,7 @@ export const noUnknownTypeAliasesRule = defineRule({
     };
 
     return {
+      /** Save the file's type environment for alias resolution. */
       Program(node) {
         aliases.clear();
         for (const statement of node.body) {

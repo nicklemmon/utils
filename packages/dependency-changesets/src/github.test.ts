@@ -20,6 +20,7 @@ type Fixture = {
   calls: Call[];
 };
 
+/** Build a pull request response for GitHub API tests. */
 function pull(sha: string = head): Response {
   return Response.json({
     number: 40,
@@ -30,6 +31,7 @@ function pull(sha: string = head): Response {
   });
 }
 
+/** Build GitHub request and response fixtures for integration tests. */
 function fixture(): Fixture {
   const calls: Call[] = [];
   const responses = new Map<string, Response>([
@@ -83,6 +85,7 @@ function fixture(): Fixture {
       })),
     }),
   );
+  /** Record and return fixture responses for GitHub calls. */
   // oxlint-disable-next-line typescript/prefer-readonly-parameter-types -- RequestInit is the injected fetch library contract.
   const request: NonNullable<GitHubOptions["request"]> = async (input, init) => {
     const path =

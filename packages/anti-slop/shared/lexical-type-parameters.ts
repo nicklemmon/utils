@@ -6,10 +6,12 @@ type NodeCandidate = {
   readonly type?: string;
 };
 
+/** Return whether a value is an ESTree node. */
 function isNode(value: NodeCandidate | null | undefined): value is ESTree.Node {
   return value !== null && value !== undefined && typeof value.type === "string";
 }
 
+/** Visit each child node and collect names declared by infer types. */
 function visitChildNodes(
   node: ESTree.Node,
   visitorKeys: VisitorKeys,
@@ -37,6 +39,7 @@ function visitChildNodes(
   }
 }
 
+/** Collect type parameter names introduced by `infer`. */
 function collectInferTypeParameterNames(
   node: ESTree.Node,
   visitorKeys: VisitorKeys,
@@ -55,6 +58,7 @@ function collectInferTypeParameterNames(
  * @param visitorKeys - Visitor keys used to walk infer type parameter nodes.
  * @returns Names of type parameters that shadow aliases at `node`.
  */
+/** Collect type parameters in scope that can shadow module aliases. */
 export function lexicalTypeParameterNames(
   node: ESTree.Node,
   visitorKeys: VisitorKeys,
