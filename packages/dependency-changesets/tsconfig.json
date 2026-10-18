@@ -1,8 +1,9 @@
 {
-  "extends": "@repo/typescript-config/base.json",
+  "extends": "@repo/typescript-config/library.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "lib": ["ES2024"],
+    "rootDir": "src",
     "types": ["node"]
   },
   "include": ["src/**/*.ts"]

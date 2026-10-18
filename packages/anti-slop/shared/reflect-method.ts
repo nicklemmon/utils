@@ -1,5 +1,6 @@
 import type { ESTree, Scope, SourceCode, Variable } from "@oxlint/plugins";
 
+/** Find the scope variable bound to an identifier. */
 function resolveVariable(
   sourceCode: SourceCode,
   identifier: ESTree.IdentifierReference,
@@ -13,6 +14,7 @@ function resolveVariable(
   return null;
 }
 
+/** Return whether an expression refers to the global `Reflect` object. */
 function isGlobalReflect(sourceCode: SourceCode, expression: ESTree.Expression): boolean {
   if (expression.type !== "Identifier" || expression.name !== "Reflect") return false;
   if (sourceCode.isGlobalReference(expression)) return true;
@@ -28,6 +30,7 @@ function isGlobalReflect(sourceCode: SourceCode, expression: ESTree.Expression):
  * @param methodName - Expected Reflect method name.
  * @returns `true` when `callee` is `Reflect.<methodName>` on the global object.
  */
+/** Return whether a call targets a method on the global `Reflect` object. */
 export function isGlobalReflectMethodCall(
   sourceCode: SourceCode,
   callee: ESTree.Expression,

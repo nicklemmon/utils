@@ -11,6 +11,7 @@ import path from "node:path";
  */
 export async function copyOverlayOnto(overlayDir: string, destDir: string): Promise<void> {
   await cp(overlayDir, destDir, {
+    /** Skip Git metadata while copying the overlay. */
     filter: (source) => path.basename(source) !== ".git",
     recursive: true,
     verbatimSymlinks: true,

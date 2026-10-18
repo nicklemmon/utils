@@ -13,6 +13,7 @@ type FunctionWithReturnType =
   | ESTree.TSFunctionType
   | ESTree.TSMethodSignature;
 
+/** Return the name of a simple referenced type alias. */
 function referencedAliasName(type: ESTree.TSType): string | null {
   if (type.type === "TSParenthesizedType") return referencedAliasName(type.typeAnnotation);
   if (type.type !== "TSTypeReference" || type.typeName.type !== "Identifier") return null;
@@ -36,9 +37,11 @@ export const noUnknownReturnsRule = defineRule({
         "This function exposes `unknown` to its caller. Parse the value at its boundary and return a named domain type.",
     },
   },
+  /** Register visitors that check function return types. */
   createOnce(context) {
     const aliases = new Map<string, ESTree.TSTypeAliasDeclaration>();
 
+    /** Return whether a type resolves to `unknown`. */
     const resolvesToUnknown = (
       type: ESTree.TSType,
       shadowedAliases: ReadonlySet<string>,
@@ -73,6 +76,7 @@ export const noUnknownReturnsRule = defineRule({
       return resolvesToUnknown(alias.typeAnnotation, shadowedAliases, nextVisited);
     };
 
+    /** Report a function return type that resolves to `unknown`. */
     const checkReturnType = (node: FunctionWithReturnType) => {
       const annotation = node.returnType;
       if (annotation === null || annotation === undefined) return;
@@ -88,6 +92,7 @@ export const noUnknownReturnsRule = defineRule({
     };
 
     return {
+      /** Save the file's type environment for alias resolution. */
       Program(node) {
         aliases.clear();
         for (const statement of node.body) {

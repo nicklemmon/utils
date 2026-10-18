@@ -8,6 +8,7 @@ import { afterAll } from "vitest";
 import { noCrossPackageInternalsRule } from "./no-cross-package-internals.ts";
 
 const root = mkdtempSync(path.join(os.tmpdir(), "anti-slop-boundaries-"));
+/** Create a workspace package fixture. */
 const createPackage = (folder: string, manifest: string) => {
   const packageRoot = path.join(root, "packages", folder);
   mkdirSync(packageRoot, { recursive: true });
@@ -41,6 +42,7 @@ createPackage(
 const closed = createPackage("closed", JSON.stringify({ name: "@repo/closed" }));
 mkdirSync(path.join(beta, "public"), { recursive: true });
 symlinkSync(beta, path.join(alpha, "node_modules-beta"), "dir");
+/** Build a path inside a workspace package fixture. */
 const filename = (packageRoot: string, name = "entry.ts") => path.join(packageRoot, name);
 const error = { messageId: "crossPackage" };
 afterAll(() => {

@@ -76,6 +76,7 @@ export function githubServices(options: GitHubOptions): ChangesetServices {
   const request = options.request ?? fetch;
   const prefix = `https://api.github.com/repos/${repository}`;
 
+  /** Send one GitHub API request and validate its response. */
   // oxlint-disable-next-line typescript/prefer-readonly-parameter-types -- Zod schema methods use mutable library types.
   async function api<T>(path: string, schema: z.ZodType<T>, payload?: Mutation): Promise<T> {
     const init: RequestInit = {
@@ -104,6 +105,7 @@ export function githubServices(options: GitHubOptions): ChangesetServices {
     return schema.parse(await response.json());
   }
 
+  /** Read and validate the pull request for this run. */
   async function readPull(): Promise<Pull> {
     const pull = await api(`/pulls/${number}`, pullSchema);
     if (
@@ -122,11 +124,13 @@ export function githubServices(options: GitHubOptions): ChangesetServices {
     return pull;
   }
 
+  /** Read a commit tree by reference. */
   async function readTree(ref: string): Promise<Tree> {
     const commit = await api(`/git/commits/${ref}`, commitSchema);
     return api(`/git/trees/${commit.tree.sha}?recursive=1`, treeSchema);
   }
 
+  /** Read a regular file from a Git tree. */
   async function readFile(
     tree: Readonly<{ tree: readonly Readonly<Tree["tree"][number]>[] }>,
     path: string,
@@ -139,6 +143,7 @@ export function githubServices(options: GitHubOptions): ChangesetServices {
     return Buffer.from(blob.content, "base64").toString("utf8");
   }
 
+  /** Load PR metadata and package manifests from Git objects. */
   async function load(): Promise<ChangesetSource> {
     const pull = await readPull();
     const comparison = await api(`/compare/${pull.base.sha}...${pull.head.sha}`, comparisonSchema);
@@ -190,6 +195,7 @@ export function githubServices(options: GitHubOptions): ChangesetServices {
     };
   }
 
+  /** Confirm the pull request head still matches the captured source. */
   async function verify(source: ChangesetSource): Promise<void> {
     const pull = await readPull();
     if (pull.head.sha !== source.head || pull.head.ref !== source.branch) {
@@ -197,6 +203,7 @@ export function githubServices(options: GitHubOptions): ChangesetServices {
     }
   }
 
+  /** Commit the changeset update to the pull request branch. */
   async function publish(source: ChangesetSource, plan: ChangesetPlan): Promise<void> {
     const result = await api("/graphql", mutationSchema, {
       query:

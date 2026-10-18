@@ -4,6 +4,7 @@ import { defineRule } from "@oxlint/plugins";
 
 const FORBIDDEN_SYMBOL_NAME = "shape";
 
+/** Return whether a symbol name contains the forbidden term. */
 function containsForbiddenSymbolName(name: string): boolean {
   return name.toLowerCase().includes(FORBIDDEN_SYMBOL_NAME);
 }
@@ -21,7 +22,9 @@ export const noForbiddenTermInSymbolNamesRule = defineRule({
         'Rename symbol "{{name}}" for its domain role; "shape" describes structure rather than ownership.',
     },
   },
+  /** Register visitors that check declared symbol names. */
   createOnce(context) {
+    /** Report a symbol name that contains the forbidden term. */
     const reportForbiddenSymbolName = (node: ESTree.Node & { name: string }) => {
       if (!containsForbiddenSymbolName(node.name)) return;
       context.report({

@@ -16,10 +16,12 @@ type JsonValue = z.infer<typeof jsonSchema>;
 type WorkspacePackage = { name: string; root: string; exports: JsonValue | undefined };
 type Workspace = { root: string; packages: WorkspacePackage[] };
 
+/** Parse a JSON manifest with its schema. */
 function parseManifest<T extends z.ZodType>(filePath: string, schema: T): z.infer<T> {
   return schema.parse(JSON.parse(readFileSync(filePath, "utf8")));
 }
 
+/** Resolve symlinks while preserving paths that do not exist yet. */
 function canonicalPath(filePath: string): string {
   const absolute = path.resolve(filePath);
   let ancestor = absolute;
@@ -33,6 +35,7 @@ function canonicalPath(filePath: string): string {
   return path.join(realpathSync(ancestor), ...suffix);
 }
 
+/** Read a workspace manifest and its package manifests. */
 function workspaceAt(current: string): Workspace | null {
   const manifestPath = path.join(current, "package.json");
   if (!existsSync(manifestPath)) return null;
@@ -50,6 +53,7 @@ function workspaceAt(current: string): Workspace | null {
   return { root: canonicalPath(current), packages };
 }
 
+/** Find the nearest workspace containing the file. */
 function findWorkspace(start: string): Workspace | null {
   let current = path.dirname(start);
   while (true) {
@@ -61,6 +65,7 @@ function findWorkspace(start: string): Workspace | null {
   }
 }
 
+/** Check whether an export target points to a package file. */
 function isExportTarget(value: JsonValue | undefined): boolean {
   if (value === undefined || value === null) return false;
   const stringValue = z.string().safeParse(value);
@@ -73,19 +78,17 @@ function isExportTarget(value: JsonValue | undefined): boolean {
   return false;
 }
 
+/** Normalize package exports to a subpath map. */
 function exportMap(exports: JsonValue | undefined): Map<string, JsonValue> | null {
   if (exports === undefined || exports === null) return null;
-  const stringValue = z.string().safeParse(exports);
-  if (stringValue.success) return new Map([[".", stringValue.data]]);
-  const arrayValue = z.array(jsonSchema).safeParse(exports);
-  if (arrayValue.success) return new Map([[".", arrayValue.data]]);
   const objectValue = z.record(z.string(), jsonSchema).safeParse(exports);
-  if (!objectValue.success) return null;
-  const entries = Object.entries(objectValue.data);
-  if (entries.some(([key]) => key.startsWith("."))) return new Map(entries);
-  return new Map([[".", exports]]);
+  if (!objectValue.success || !Object.keys(objectValue.data).some((key) => key.startsWith("."))) {
+    return new Map([[".", exports]]);
+  }
+  return new Map(Object.entries(objectValue.data));
 }
 
+/** Find the most specific export key for a subpath. */
 function bestExportKey(exports: Map<string, JsonValue>, subpath: string): string | null {
   let best: string | null = null;
   for (const key of exports.keys()) {
@@ -107,6 +110,7 @@ function bestExportKey(exports: Map<string, JsonValue>, subpath: string): string
   return best;
 }
 
+/** Read a literal string from an import source node. */
 function sourceString(node: ESTree.Node | undefined): string | null {
   if (node?.type === "Literal") {
     const parsed = z.string().safeParse(node.value);
@@ -117,11 +121,13 @@ function sourceString(node: ESTree.Node | undefined): string | null {
   return null;
 }
 
+/** Remove query and fragment parts from an import source. */
 function cleanSource(source: string): string {
   const withoutQuery = source.split(/[?#]/u, 1)[0] ?? source;
   return withoutQuery.startsWith("file:") ? fileURLToPath(withoutQuery) : withoutQuery;
 }
 
+/** Find the workspace package targeted by an import source. */
 function targetPackage(
   source: string,
   importer: string,
@@ -142,6 +148,7 @@ function targetPackage(
   );
 }
 
+/** Check whether an import source matches a declared package export. */
 function isPublicImport(source: string, target: WorkspacePackage): boolean {
   const normalized = cleanSource(source);
   const map = exportMap(target.exports);
@@ -164,6 +171,7 @@ export const noCrossPackageInternalsRule = defineRule({
     docs: { description: "Disallow imports that cross package boundaries through internal paths." },
     messages: { crossPackage: "Import from {{packageName}} through a declared package export." },
   },
+  /** Create visitors that check cross-package imports. */
   create(context) {
     const importer = canonicalPath(context.filename);
     const workspace = findWorkspace(importer);
@@ -173,6 +181,7 @@ export const noCrossPackageInternalsRule = defineRule({
     );
     if (owner === undefined) return {};
 
+    /** Report imports that bypass a target package's public exports. */
     const check = (node: ESTree.Node, source: string | null) => {
       if (source === null) return;
       const target = targetPackage(source, importer, workspace.packages);
@@ -188,18 +197,23 @@ export const noCrossPackageInternalsRule = defineRule({
       }
     };
     return {
+      /** Check static imports. */
       ImportDeclaration(node) {
         check(node, node.source.value);
       },
+      /** Check named re-exports. */
       ExportNamedDeclaration(node) {
         if (node.source !== null) check(node, node.source.value);
       },
+      /** Check wildcard re-exports. */
       ExportAllDeclaration(node) {
         check(node, node.source.value);
       },
+      /** Check literal dynamic imports. */
       ImportExpression(node) {
         check(node, sourceString(node.source));
       },
+      /** Check TypeScript import types. */
       TSImportType(node) {
         check(node, node.source.value);
       },

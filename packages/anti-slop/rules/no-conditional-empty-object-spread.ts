@@ -2,6 +2,7 @@ import type { ESTree } from "@oxlint/plugins";
 
 import { defineRule } from "@oxlint/plugins";
 
+/** Remove parenthesized expression wrappers. */
 function unwrapParentheses(node: ESTree.Expression): ESTree.Expression {
   let current = node;
   while (current.type === "ParenthesizedExpression") {
@@ -10,10 +11,12 @@ function unwrapParentheses(node: ESTree.Expression): ESTree.Expression {
   return current;
 }
 
+/** Return whether an expression is an empty object literal. */
 function isEmptyObjectExpression(node: ESTree.Expression): boolean {
   return node.type === "ObjectExpression" && node.properties.length === 0;
 }
 
+/** Return whether a conditional expression has an empty object branch. */
 function isConditionalEmptyObjectSpread(node: ESTree.Expression): boolean {
   const conditional = unwrapParentheses(node);
   return (
@@ -36,8 +39,10 @@ export const noConditionalEmptyObjectSpreadRule = defineRule({
         "This conditional spread hides property omission behind an empty object. Build the object in separate statements and add the property only when present.",
     },
   },
+  /** Register a visitor that detects conditional object spreads. */
   createOnce(context) {
     return {
+      /** Report a conditional spread with an empty object branch. */
       SpreadElement(node) {
         if (node.parent.type !== "ObjectExpression") return;
 

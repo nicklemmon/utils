@@ -36,6 +36,7 @@ export function exitCodeForOutcome(outcome: Readonly<SyncOutcome>): number {
   return outcome.kind === "conflict" ? 1 : 0;
 }
 
+/** Render a sync outcome as human-readable CLI text. */
 function formatOutcomeAsText(outcome: Readonly<SyncOutcome>): string {
   switch (outcome.kind) {
     case "no-op":

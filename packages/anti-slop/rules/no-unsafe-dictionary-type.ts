@@ -49,14 +49,17 @@ const typeNodeKinds: ReadonlySet<string> = new Set([
   "TSVoidKeyword",
 ]);
 
+/** Return whether a node represents a TypeScript type. */
 function isTypeNode(node: ESTree.Node): node is ESTree.TSType {
   return typeNodeKinds.has(node.type);
 }
 
+/** Return the name of a simple referenced type. */
 function typeReferenceName(type: ESTree.TSTypeReference): string | null {
   return type.typeName.type === "Identifier" ? type.typeName.name : null;
 }
 
+/** Return whether a type belongs to a type alias declaration. */
 function isInsideTypeAliasDeclaration(node: ESTree.Node): boolean {
   let current: ESTree.Node | null = node.parent;
   while (current !== null && current.type !== "Program") {
@@ -66,6 +69,7 @@ function isInsideTypeAliasDeclaration(node: ESTree.Node): boolean {
   return false;
 }
 
+/** Return whether a type use is a plain alias consumer. */
 function isPlainAliasConsumerUse(node: ESTree.TSType, environment: TypeEnvironment): boolean {
   if (node.type !== "TSTypeReference" || (node.typeArguments?.params.length ?? 0) > 0) {
     return false;
@@ -74,6 +78,7 @@ function isPlainAliasConsumerUse(node: ESTree.TSType, environment: TypeEnvironme
   return name !== null && environment.aliases.has(name) && !isInsideTypeAliasDeclaration(node);
 }
 
+/** Return whether the type contains an unsafe dictionary value. */
 function shouldReportType(node: ESTree.TSType, environment: TypeEnvironment): boolean {
   if (isPlainAliasConsumerUse(node, environment)) return false;
   if (classifyUnsafeDictionary(node, environment) === null) return false;
@@ -99,11 +104,14 @@ export const noUnsafeDictionaryTypeRule = defineRule({
         "This dictionary's {{value}} value type gives callers no concrete value contract. Use an owner/schema-derived value type; parse external payloads before insertion.",
     },
   },
+  /** Register visitors that inspect dictionary type declarations. */
   createOnce(context) {
     let environment: TypeEnvironment | null = null;
+    /** Report an unsafe dictionary value type. */
     const report = (node: ESTree.Node, value: string) => {
       context.report({ node, messageId: "unsafeDictionary", data: { value } });
     };
+    /** Report a type when its dictionary value is unsafe. */
     const reportIfUnsafe = (node: ESTree.TSType) => {
       if (environment === null || !shouldReportType(node, environment)) return;
       const unsafe = classifyUnsafeDictionary(node, environment);
@@ -112,12 +120,14 @@ export const noUnsafeDictionaryTypeRule = defineRule({
     };
 
     return {
+      /** Save type information for alias resolution. */
       Program(node) {
         environment = createTypeEnvironment(node);
       },
       TSTypeReference: reportIfUnsafe,
       TSTypeLiteral: reportIfUnsafe,
       TSMappedType: reportIfUnsafe,
+      /** Check index signatures for unsafe dictionary value types. */
       TSIndexSignature(node) {
         if (
           environment === null ||

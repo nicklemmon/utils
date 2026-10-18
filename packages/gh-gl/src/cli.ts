@@ -52,6 +52,7 @@ function resolveVarlockBin(): string {
 
 const ErrorWithMessageSchema = z.object({ message: z.string() });
 
+/** Read an error's message when it has a string message field. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- I/O boundary parser for a caught exception of unknown shape.
 function errorMessage(error: unknown): string {
   const parsed = ErrorWithMessageSchema.safeParse(error);

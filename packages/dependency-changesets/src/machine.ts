@@ -34,6 +34,7 @@ export type ChangesetResult = {
 /** Preview a plan, check the generated file, or publish it. */
 export type ChangesetMode = "preview" | "check" | "publish";
 
+/** Convert an effect error to a message for the run result. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Actor errors enter from external effects.
 function describeError(error: unknown): string {
   const parsed = z.object({ message: z.string() }).safeParse(error);
@@ -42,6 +43,7 @@ function describeError(error: unknown): string {
     : "Changeset generation failed without an error message";
 }
 
+/** Return the loaded source or fail when loading did not complete. */
 function requireSource(context: Context): ChangesetSource {
   if (!context.source) {
     throw new Error("Changeset source is missing");
@@ -49,6 +51,7 @@ function requireSource(context: Context): ChangesetSource {
   return context.source;
 }
 
+/** Return the computed plan or fail when planning did not complete. */
 function requirePlan(context: Context): ChangesetPlan {
   if (!context.plan) {
     throw new Error("Changeset plan is missing");
@@ -97,59 +100,87 @@ export async function runChangesets(
           onDone: {
             target: "planning",
             actions: assign({
+              /** Store the loaded source in machine context. */
               source: ({ event }: CompletionInput<ChangesetSource>) => event.output,
             }),
           },
           onError: {
             target: "failed",
-            actions: assign({ error: ({ event }: FailureInput) => describeError(event.error) }),
+            actions: assign({
+              /** Format the load error for the run result. */
+              error: ({ event }: FailureInput) => describeError(event.error),
+            }),
           },
         },
       },
       planning: {
         invoke: {
           src: "plan",
+          /** Pass the loaded source to the planner. */
           input: ({ context }: ContextInput) => requireSource(context),
           onDone: {
             target: "deciding",
-            actions: assign({ plan: ({ event }: CompletionInput<ChangesetPlan>) => event.output }),
+            actions: assign({
+              /** Store the computed plan in machine context. */
+              plan: ({ event }: CompletionInput<ChangesetPlan>) => event.output,
+            }),
           },
           onError: {
             target: "failed",
-            actions: assign({ error: ({ event }: FailureInput) => describeError(event.error) }),
+            actions: assign({
+              /** Format the planning error for the run result. */
+              error: ({ event }: FailureInput) => describeError(event.error),
+            }),
           },
         },
       },
       deciding: {
         always: [
           {
+            /** Select the unchanged outcome when the plan did not change. */
             guard: ({ context }: ContextInput): boolean => !requirePlan(context).changed,
             target: "unchanged",
           },
-          { guard: (): boolean => mode === "preview", target: "preview" },
-          { guard: (): boolean => mode === "check", target: "outdated" },
+          {
+            /** Select the preview outcome in preview mode. */
+            guard: (): boolean => mode === "preview",
+            target: "preview",
+          },
+          {
+            /** Select the outdated outcome in check mode. */
+            guard: (): boolean => mode === "check",
+            target: "outdated",
+          },
           { target: "verifying" },
         ],
       },
       verifying: {
         invoke: {
           src: "verify",
+          /** Pass the loaded source to verification. */
           input: ({ context }: ContextInput) => requireSource(context),
           onDone: "publishing",
           onError: {
             target: "failed",
-            actions: assign({ error: ({ event }: FailureInput) => describeError(event.error) }),
+            actions: assign({
+              /** Format the verification error for the run result. */
+              error: ({ event }: FailureInput) => describeError(event.error),
+            }),
           },
         },
       },
       publishing: {
         invoke: {
           src: "publish",
+          /** Pass the current context to the publisher. */
           input: ({ context }: ContextInput) => context,
           onDone: "published",
           onError: {
             target: "failed",
-            actions: assign({ error: ({ event }: FailureInput) => describeError(event.error) }),
+            actions: assign({
+              /** Format the publish error for the run result. */
+              error: ({ event }: FailureInput) => describeError(event.error),
+            }),
           },
         },
       },

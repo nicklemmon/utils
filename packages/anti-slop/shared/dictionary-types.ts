@@ -41,6 +41,7 @@ export type TypeEnvironment = {
   readonly shadowedBuiltIns: ReadonlySet<string>;
 };
 
+/** Unwrap an exported declaration from its export statement. */
 function declaredStatement(statement: ESTree.Statement): ESTree.Node | null {
   return statement.type === "ExportNamedDeclaration" ||
     statement.type === "ExportDefaultDeclaration"
@@ -48,6 +49,7 @@ function declaredStatement(statement: ESTree.Statement): ESTree.Node | null {
     : statement;
 }
 
+/** Collect local type declarations and shadowed built-in names. */
 export function createTypeEnvironment(program: ESTree.Program): TypeEnvironment {
   const aliases = new Map<string, ESTree.TSTypeAliasDeclaration>();
   const interfaces = new Map<string, ESTree.TSInterfaceDeclaration[]>();
@@ -95,14 +97,17 @@ export function createTypeEnvironment(program: ESTree.Program): TypeEnvironment 
   return { aliases, interfaces, shadowedBuiltIns };
 }
 
+/** Return the name of a simple type reference. */
 function typeReferenceName(type: ESTree.TSTypeReference): string | null {
   return type.typeName.type === "Identifier" ? type.typeName.name : null;
 }
 
+/** Return whether a name refers to an unshadowed built-in type. */
 function isBuiltIn(name: string, environment: TypeEnvironment): boolean {
   return BUILT_INS.has(name) && !environment.shadowedBuiltIns.has(name);
 }
 
+/** Return whether a type is an unparameterized reference to a given name. */
 function isUnappliedReferenceTo(type: ESTree.TSType, name: string): boolean {
   const unwrapped = unwrapTransparentType(type);
   return (
@@ -114,6 +119,7 @@ function isUnappliedReferenceTo(type: ESTree.TSType, name: string): boolean {
   );
 }
 
+/** Remove parentheses and readonly wrappers from a type. */
 function unwrapTransparentType(type: ESTree.TSType): ESTree.TSType {
   let current = type;
   while (
@@ -125,10 +131,12 @@ function unwrapTransparentType(type: ESTree.TSType): ESTree.TSType {
   return current;
 }
 
+/** Return whether a type resolves to `never`. */
 function isNeverType(type: ESTree.TSType): boolean {
   return unwrapTransparentType(type).type === "TSNeverKeyword";
 }
 
+/** Return whether an optional property can never be present. */
 function isEffectivelyEmptyMember(member: ESTree.TSSignature): boolean {
   return (
     member.type === "TSPropertySignature" &&
@@ -139,10 +147,12 @@ function isEffectivelyEmptyMember(member: ESTree.TSSignature): boolean {
   );
 }
 
+/** Return whether a type literal has no usable members. */
 function isEffectivelyEmptyTypeLiteral(type: ESTree.TSTypeLiteral): boolean {
   return type.members.length === 0 || type.members.every(isEffectivelyEmptyMember);
 }
 
+/** Return whether one interface declaration has no usable members. */
 function isEffectivelyEmptyInterface(
   declarations: readonly ESTree.TSInterfaceDeclaration[],
 ): boolean {
@@ -155,6 +165,7 @@ function isEffectivelyEmptyInterface(
   );
 }
 
+/** Resolve a type argument through the current generic substitutions. */
 function resolvedSubstitutionArgument(
   type: ESTree.TSType,
   base: TypeAliasEnvironment,
@@ -171,6 +182,7 @@ function resolvedSubstitutionArgument(
   return resolvedSubstitutionArgument(substitution, base, nextResolving);
 }
 
+/** Bind a type alias's parameters to its supplied arguments. */
 function aliasSubstitution(
   alias: ESTree.TSTypeAliasDeclaration,
   type: ESTree.TSTypeReference,
@@ -187,6 +199,7 @@ function aliasSubstitution(
   return next;
 }
 
+/** Classify unsafe values reached through a dictionary value type. */
 function unsafeDirectValue(
   type: ESTree.TSType,
   environment: TypeEnvironment,
@@ -246,6 +259,7 @@ function unsafeDirectValue(
   return unsafeDirectValue(alias.typeAnnotation, environment, nextSubstitutions, nextResolving);
 }
 
+/** Collect value types from dictionary and mapped types. */
 function dictionaryValueTypes(
   type: ESTree.TSType,
   environment: TypeEnvironment,
@@ -307,6 +321,7 @@ function dictionaryValueTypes(
   return dictionaryValueTypes(alias.typeAnnotation, environment, nextSubstitutions, nextResolving);
 }
 
+/** Classify one value type used by a dictionary. */
 export function classifyUnsafeDictionaryValue(
   valueType: ESTree.TSType,
   environment: TypeEnvironment,
@@ -315,6 +330,7 @@ export function classifyUnsafeDictionaryValue(
   return unsafeValue === null ? null : { kind: "unsafe-dictionary", unsafeValue };
 }
 
+/** Classify unsafe value types in a dictionary contract. */
 export function classifyUnsafeDictionary(
   type: ESTree.TSType,
   environment: TypeEnvironment,
@@ -331,6 +347,7 @@ export function classifyUnsafeDictionary(
   return null;
 }
 
+/** Return whether a type resolves to a dictionary. */
 function resolvesToDictionary(
   type: ESTree.TSType,
   environment: TypeEnvironment,
@@ -340,6 +357,7 @@ function resolvesToDictionary(
   return dictionaryValueTypes(type, environment, substitutions, resolvingAliases).length > 0;
 }
 
+/** Classify types that can erase useful value evidence. */
 export function classifyWideningTarget(
   type: ESTree.TSType,
   environment: TypeEnvironment,
@@ -383,6 +401,7 @@ export function classifyWideningTarget(
   return resolved;
 }
 
+/** Return whether a mapped type key covers every property key. */
 function isBroadMappedKey(
   type: ESTree.TSType,
   environment: TypeEnvironment,
@@ -409,6 +428,7 @@ function isBroadMappedKey(
   return name === "PropertyKey" && isBuiltIn(name, environment);
 }
 
+/** Resolve an alias and classify any broad target type it contains. */
 function classifyAliasBroadTarget(
   type: ESTree.TSType,
   environment: TypeEnvironment,
@@ -460,6 +480,7 @@ function classifyAliasBroadTarget(
   );
 }
 
+/** Return whether an expression is a non-empty object literal. */
 export function isPopulatedObjectExpression(expression: ESTree.Expression): boolean {
   let current = expression;
   while (
@@ -473,6 +494,7 @@ export function isPopulatedObjectExpression(expression: ESTree.Expression): bool
   return current.type === "ObjectExpression" && current.properties.length > 0;
 }
 
+/** Return whether an expression has a concrete syntactic type. */
 export function isKnownEvidenceExpression(expression: ESTree.Expression): boolean {
   let current = expression;
   while (

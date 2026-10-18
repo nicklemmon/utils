@@ -30,12 +30,14 @@ const SyncFlagsSchema = z.object({
 
 const ErrorWithMessageSchema = z.object({ message: z.string() });
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- I/O boundary parser for a caught exception of unknown shape.
+// oxlint-disable anti-slop/no-unknown-parameters -- I/O boundary parser for a caught exception of unknown shape.
+/** Return an error's message when it has a string message field. */
 function errorMessage(error: unknown): string {
   const parsed = ErrorWithMessageSchema.safeParse(error);
 
   return parsed.success ? parsed.data.message : "Unknown error";
 }
+// oxlint-enable anti-slop/no-unknown-parameters
 
 /**
  * Print `message` and set exit code `2` (real error).
@@ -57,6 +59,7 @@ function fail(message: string, json: boolean): void {
   process.exitCode = 2;
 }
 
+/** Join validation issue messages into one CLI error string. */
 function formatZodIssues(issues: ReadonlyArray<Readonly<{ message: string }>>): string {
   const messages: Array<string> = [];
 
@@ -67,7 +70,8 @@ function formatZodIssues(issues: ReadonlyArray<Readonly<{ message: string }>>): 
   return messages.join("\n");
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- commander's action handler hands back its options object untyped; parsed via SyncFlagsSchema immediately below.
+// oxlint-disable anti-slop/no-unknown-parameters -- commander's action handler hands back its options object untyped; parsed via SyncFlagsSchema immediately below.
+/** Validate command flags, check tokens, run sync, and report its result. */
 async function runSyncCommand(rawFlags: unknown): Promise<void> {
   const parsed = SyncFlagsSchema.safeParse(rawFlags);
 
@@ -109,6 +113,7 @@ async function runSyncCommand(rawFlags: unknown): Promise<void> {
     fail(errorMessage(error), flags.json);
   }
 }
+// oxlint-enable anti-slop/no-unknown-parameters
 
 const program = new Command();
 const jsonRequested = process.argv.slice(2).includes("--json");

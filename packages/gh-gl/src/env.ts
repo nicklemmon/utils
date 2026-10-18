@@ -26,6 +26,7 @@ export type SyncTokens = {
 };
 
 // Missing and empty tokens are the same: varlock yields `undefined` when unset and `""` when empty.
+/** Return whether a token contains a usable value. */
 function isUsableToken(token: string | undefined): boolean {
   return token !== undefined && token !== "";
 }

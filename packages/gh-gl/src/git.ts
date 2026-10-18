@@ -166,12 +166,14 @@ const ExecaFailureSchema = z.object({ stderr: z.string() });
 const REJECTED_PUSH_PATTERN =
   /\[rejected\]|\[remote rejected\]|\(fetch first\)|\(non-fast-forward\)|\(failed to update ref\)|Up-to-date check failed/u;
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- This function is the I/O boundary parser for a caught execa rejection.
+// oxlint-disable anti-slop/no-unknown-parameters -- This function is the I/O boundary parser for a caught execa rejection.
+/** Identify execa failures caused by a rejected remote push. */
 function isRejectedPush(error: unknown): boolean {
   const parsed = ExecaFailureSchema.safeParse(error);
 
   return parsed.success && REJECTED_PUSH_PATTERN.test(parsed.data.stderr);
 }
+// oxlint-enable anti-slop/no-unknown-parameters
 
 /**
  * Push the scratch repo's local `branch` to `remoteUrl`.
@@ -226,6 +228,7 @@ export type MergeResult =
   | { kind: "clean" }
   | { kind: "conflict"; conflictingFiles: ReadonlyArray<string> };
 
+/** List files that remain unmerged after a failed merge. */
 async function listConflictingFiles(dir: string): Promise<Array<string>> {
   const { stdout } = await execa("git", ["-C", dir, "diff", "--name-only", "--diff-filter=U"]);
 
