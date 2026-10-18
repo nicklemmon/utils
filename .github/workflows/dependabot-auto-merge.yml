@@ -3,11 +3,8 @@
 name: Dependabot auto-merge
 
 on:
-  pull_request:
-    types:
-      - opened
-      - reopened
-      - synchronize
+  # Generate runtime changesets before enabling auto-merge.
+  workflow_call:
 
 # Match sibling workflows: deny by default, elevate on the job.
 permissions: {}

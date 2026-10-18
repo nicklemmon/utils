@@ -15,10 +15,12 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@oxlint/plugins": "^1.83.0"
+    "@oxlint/plugins": "^1.87.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@repo/typescript-config": "*",
+    "@types/node": "^26.6.5",
     "oxlint": "*",
     "typescript": "*",
     "vitest": "*"

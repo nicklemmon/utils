@@ -36,15 +36,15 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
-    "execa": "^10.0.1",
-    "varlock": "^1.19.0",
+    "execa": "^10.1.0",
+    "varlock": "^1.22.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "*",
     "@repo/anti-slop": "*",
     "@repo/typescript-config": "*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.5",
     "publint": "*",
     "tsdown": "*",
     "typescript": "*",

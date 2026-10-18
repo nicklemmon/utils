@@ -5,10 +5,18 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-const PackedPackageSchema = z.object({
-  files: z.array(z.object({ path: z.string() })),
-});
-const PackOutputSchema = z.tuple([PackedPackageSchema]).rest(PackedPackageSchema);
+const PackedPackageSchema = z
+  .object({
+    files: z.array(z.object({ path: z.string() }).readonly()).readonly(),
+  })
+  .readonly();
+const PackOutputSchema = z.union([
+  z.tuple([PackedPackageSchema]).rest(PackedPackageSchema),
+  z
+    .object({ "@nicklemmon/gh-gl": PackedPackageSchema })
+    .readonly()
+    .transform((packages) => [packages["@nicklemmon/gh-gl"]] as const),
+]);
 
 describe("published package", () => {
   const cleanups: Array<() => void> = [];
