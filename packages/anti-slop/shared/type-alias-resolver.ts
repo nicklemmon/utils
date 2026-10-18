@@ -12,9 +12,11 @@ type TypeNameBinding = {
 };
 
 type TypeAliasResolver = {
+  /** Resolve a type under the caller's alias and scope policy. */
   resolvesToUnknown(type: ESTree.TSType, policy: TypeAliasPolicy): boolean;
 };
 
+/** Check whether a switch discriminant creates a separate lexical scope. */
 function isSwitchDiscriminant(node: ESTree.Node, switchStatement: ESTree.Node): boolean {
   let current: ESTree.Node = node;
   while (current.parent !== null && current.parent !== switchStatement) {
@@ -27,6 +29,7 @@ function isSwitchDiscriminant(node: ESTree.Node, switchStatement: ESTree.Node): 
   );
 }
 
+/** Find the nearest lexical scope that can contain a type declaration. */
 function lexicalScope(node: ESTree.Node): ESTree.Node {
   let current: ESTree.Node | null = node;
   while (
@@ -41,6 +44,7 @@ function lexicalScope(node: ESTree.Node): ESTree.Node {
   return current ?? node;
 }
 
+/** Find the parent lexical scope of a declaration scope. */
 function parentLexicalScope(node: ESTree.Node): ESTree.Node | null {
   let current: ESTree.Node | null = node.parent;
   while (
@@ -55,16 +59,19 @@ function parentLexicalScope(node: ESTree.Node): ESTree.Node | null {
   return current;
 }
 
+/** Read a simple referenced type name. */
 function referencedName(type: ESTree.TSType): string | null {
   if (type.type === "TSParenthesizedType") return referencedName(type.typeAnnotation);
   if (type.type !== "TSTypeReference" || type.typeName.type !== "Identifier") return null;
   return type.typeName.name;
 }
 
+/** Check whether a type reference has explicit type arguments. */
 function hasTypeArguments(type: ESTree.TSTypeReference): boolean {
   return type.typeArguments !== null && type.typeArguments.params.length > 0;
 }
 
+/** Count the parent links between a node and an ancestor. */
 function distanceToAncestor(node: ESTree.Node, ancestor: ESTree.Node): number {
   let distance = 0;
   let current: ESTree.Node | null = node;
@@ -76,6 +83,7 @@ function distanceToAncestor(node: ESTree.Node, ancestor: ESTree.Node): number {
   return Number.POSITIVE_INFINITY;
 }
 
+/** Read a named interface or class declaration. */
 function declaredTypeName(node: ESTree.Node): string | null {
   if (node.type === "TSInterfaceDeclaration") return node.id.name;
   if (node.type !== "ClassDeclaration") return null;
@@ -94,6 +102,7 @@ export function createTypeAliasResolver(
   shadowingDeclarations: readonly ESTree.Node[],
 ): TypeAliasResolver {
   const namesByScope = new WeakMap<ESTree.Node, Map<string, TypeNameBinding>>();
+  /** Bind a type name to an alias or a declaration that shadows one. */
   const setBinding = (
     scope: ESTree.Node,
     name: string,
@@ -120,6 +129,7 @@ export function createTypeAliasResolver(
     if (name !== null) setBinding(lexicalScope(declaration), name, null);
   }
 
+  /** Find the visible alias for a type reference. */
   const findAlias = (
     type: ESTree.TSType,
     typeParameterScopes: ReadonlyMap<string, ESTree.Node>,
@@ -144,6 +154,7 @@ export function createTypeAliasResolver(
     return null;
   };
 
+  /** Check whether a local declaration shadows a built-in type name. */
   const hasLocalTypeName = (
     type: ESTree.TSType,
     name: string,
@@ -158,6 +169,7 @@ export function createTypeAliasResolver(
     return false;
   };
 
+  /** Resolve a type recursively while avoiding alias cycles. */
   const resolves = (
     type: ESTree.TSType,
     policy: TypeAliasPolicy,
@@ -195,6 +207,7 @@ export function createTypeAliasResolver(
   };
 
   return {
+    /** Resolve a type under the caller's alias and scope policy. */
     resolvesToUnknown(type, policy) {
       return resolves(type, policy, new Set());
     },

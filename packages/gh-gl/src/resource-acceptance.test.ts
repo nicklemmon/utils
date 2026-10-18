@@ -21,10 +21,12 @@ import { createBareFixtureRepo, createFixtureRepo } from "./test-support/fixture
 
 type Signal<Value> = Readonly<{ promise: Promise<Value>; resolve: (value: Value) => void }>;
 
+/** Reject use of a signal before its promise resolver is assigned. */
 function uninitializedSignal(): never {
   throw new Error("Signal is not initialized");
 }
 
+/** Create a promise signal with a resolver for deterministic ordering. */
 function signal<Value>(): Signal<Value> {
   let complete: (value: Value) => void = uninitializedSignal;
   const promise = new Promise<Value>((resolve) => {
@@ -32,6 +34,7 @@ function signal<Value>(): Signal<Value> {
   });
   return {
     promise,
+    /** Resolve the signal promise. */
     resolve: (value) => {
       complete(value);
     },
@@ -105,11 +108,13 @@ describe("sync resource acceptance", () => {
     let gitlabToken: string | undefined;
     let operationError: unknown;
     let settled = false;
+    /** Fail GitHub lookup after GitLab has entered its held lookup. */
     const failGithub: BranchLookup = async (): Promise<string | undefined> => {
       await gitlabEntered.promise;
       githubFailed.resolve(null);
       throw new Error("forced lookup failure");
     };
+    /** Hold GitLab lookup until the test releases its helper. */
     const holdGitlab: BranchLookup = async (_url, env): Promise<string | undefined> => {
       const parsedEnv = askpassEnvSchema.parse(env);
       gitlabHelper = parsedEnv.GIT_ASKPASS;
@@ -121,12 +126,14 @@ describe("sync resource acceptance", () => {
       return "main";
     };
     let lookupHandler = failGithub;
+    /** Route concurrent lookups through the controlled handlers. */
     const lookup: BranchLookup = async (url, env): Promise<string | undefined> => {
       const handler = lookupHandler;
       lookupHandler = holdGitlab;
       const result = await handler(url, env);
       return result;
     };
+    /** Capture the expected lookup failure and mark the operation settled. */
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Parse the async rejection at this error boundary.
     const captureFailure = (error: unknown): "failure" => {
       settled = true;

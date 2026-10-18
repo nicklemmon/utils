@@ -106,6 +106,7 @@ export const noUnknownReturnsRule = defineRule({
             !resolver.resolvesToUnknown(annotation.typeAnnotation, {
               includeUnions: true,
               includePromises: true,
+              /** Find type parameters that shadow aliases at this reference. */
               typeParameterScopes: (type) =>
                 lexicalTypeParameterScopes(type, context.sourceCode.visitorKeys),
             })

@@ -137,6 +137,7 @@ export async function resolveRef(dir: string, ref: string): Promise<string> {
   return stdout;
 }
 
+/** Stage every change in the scratch repo at `dir`. */
 async function stageAll(dir: string): Promise<void> {
   await execa("git", ["-C", dir, "add", "--all"]);
 }

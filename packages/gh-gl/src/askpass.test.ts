@@ -26,14 +26,18 @@ describe("createAskpass", () => {
     const helperDir = mkdtempSync(path.join(root, "helper-"));
     const calls: string[] = [];
     const operations = {
+      /** Return the fixture helper directory. */
       createDirectory: (): string => helperDir,
+      /** Fail while writing the helper script. */
       writeScript: (): void => {
         calls.push("write");
         throw new Error("script write failed");
       },
+      /** Record whether executable setup runs. */
       makeExecutable: (): void => {
         calls.push("chmod");
       },
+      /** Remove the fixture helper directory. */
       removeDirectory: (dir: string): void => {
         rmSync(dir, { recursive: true, force: true });
       },
@@ -53,14 +57,18 @@ describe("createAskpass", () => {
     const helperDir = mkdtempSync(path.join(root, "helper-"));
     const calls: string[] = [];
     const operations = {
+      /** Return the fixture helper directory. */
       createDirectory: (): string => helperDir,
+      /** Record successful script writing. */
       writeScript: (): void => {
         calls.push("write");
       },
+      /** Fail while marking the script executable. */
       makeExecutable: (): void => {
         calls.push("chmod");
         throw new Error("script chmod failed");
       },
+      /** Remove the fixture helper directory. */
       removeDirectory: (dir: string): void => {
         rmSync(dir, { recursive: true, force: true });
       },
@@ -80,14 +88,18 @@ describe("createAskpass", () => {
     const cleanupError = new Error("helper removal failed");
     const calls: string[] = [];
     const operations = {
+      /** Return the fixture helper path. */
       createDirectory: (): string => "/scratch/askpass-test",
+      /** Record successful script writing. */
       writeScript: (): void => {
         calls.push("write");
       },
+      /** Fail while marking the script executable. */
       makeExecutable: (): void => {
         calls.push("chmod");
         throw setupError;
       },
+      /** Record and fail helper cleanup. */
       removeDirectory: (): void => {
         calls.push("cleanup");
         throw cleanupError;

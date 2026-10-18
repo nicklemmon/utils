@@ -53,6 +53,7 @@ export const noUnknownTypeAliasesRule = defineRule({
             !resolver.resolvesToUnknown(alias.typeAnnotation, {
               includeUnions: false,
               includePromises: false,
+              /** Find type parameters that shadow aliases at this reference. */
               typeParameterScopes(type) {
                 const scopes = new Map(
                   lexicalTypeParameterScopes(type, context.sourceCode.visitorKeys),

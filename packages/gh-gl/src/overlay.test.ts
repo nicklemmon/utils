@@ -35,6 +35,7 @@ describe("captured overlay", () => {
     for (const cleanup of cleanups.splice(0)) cleanup();
   });
 
+  /** Create an initialized scratch repo and register its cleanup. */
   async function scratch(): Promise<string> {
     const dir = mkdtempSync(path.join(tmpdir(), "gh-gl-scratch-"));
     cleanups.push(() => {

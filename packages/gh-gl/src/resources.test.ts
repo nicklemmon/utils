@@ -16,15 +16,18 @@ describe("withScratchRepo", () => {
           return "unused";
         },
         {
+          /** Record scratch directory allocation. */
           createDirectory: (): string => {
             calls.push("allocate");
             return "/tmp/gh-gl-scratch-test";
           },
+          /** Fail during scratch repository initialization. */
           initialize: async () => {
             calls.push("initialize");
             await Promise.resolve();
             throw initError;
           },
+          /** Record scratch directory cleanup. */
           removeDirectory: (): void => {
             calls.push("cleanup");
           },
@@ -46,10 +49,13 @@ describe("withScratchRepo", () => {
           throw workError;
         },
         {
+          /** Return the fixture scratch directory. */
           createDirectory: (): string => "/tmp/gh-gl-scratch-test",
+          /** Complete scratch repository initialization. */
           initialize: async () => {
             await Promise.resolve();
           },
+          /** Fail during scratch directory cleanup. */
           removeDirectory: (): void => {
             throw cleanupError;
           },
@@ -76,6 +82,7 @@ describe("withSyncAskpass", () => {
         },
         () => ({
           env: { GIT_ASKPASS: "github", GIT_ASKPASS_TOKEN: "token" },
+          /** Record helper cleanup. */
           cleanup: (): void => {
             cleanups.push("github");
           },
@@ -94,6 +101,7 @@ describe("withSyncAskpass", () => {
         calls.push(`create:${token}`);
         return {
           env: { GIT_ASKPASS: "github", GIT_ASKPASS_TOKEN: token },
+          /** Record helper cleanup. */
           cleanup: (): void => {
             calls.push("cleanup:github-helper");
           },
@@ -127,6 +135,7 @@ describe("withSyncAskpass", () => {
     createHelper
       .mockImplementationOnce((token) => ({
         env: { GIT_ASKPASS: "github", GIT_ASKPASS_TOKEN: token },
+        /** Record and fail GitHub helper cleanup. */
         cleanup: (): void => {
           calls.push("github");
           throw secondCleanupError;
@@ -134,6 +143,7 @@ describe("withSyncAskpass", () => {
       }))
       .mockImplementationOnce((token) => ({
         env: { GIT_ASKPASS: "gitlab", GIT_ASKPASS_TOKEN: token },
+        /** Record and fail GitLab helper cleanup. */
         cleanup: (): void => {
           calls.push("gitlab");
           throw firstCleanupError;
@@ -167,6 +177,7 @@ describe("withSyncAskpass", () => {
         },
         () => ({
           env: { GIT_ASKPASS: "github", GIT_ASKPASS_TOKEN: "token" },
+          /** Fail during helper cleanup. */
           cleanup: (): void => {
             throw new Error("helper cleanup failed");
           },

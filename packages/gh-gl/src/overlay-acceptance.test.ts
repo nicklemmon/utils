@@ -26,6 +26,7 @@ describe("overlay acceptance", () => {
     for (const cleanup of cleanups.splice(0)) cleanup();
   });
 
+  /** Create upstream, downstream, and overlay repositories for acceptance tests. */
   async function fixture(): Promise<OverlayFixture> {
     const github = await createFixtureRepo();
     cleanups.push(github.cleanup);

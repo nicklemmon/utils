@@ -17,8 +17,10 @@ type ScratchOperations = Readonly<{
 }>;
 
 const defaultScratchOperations: ScratchOperations = {
+  /** Create a temporary directory for the scratch repository. */
   createDirectory: () => mkdtempSync(path.join(tmpdir(), "gh-gl-scratch-")),
   initialize: initScratchRepo,
+  /** Remove the temporary scratch repository. */
   removeDirectory: (dir) => {
     rmSync(dir, { recursive: true, force: true });
   },
