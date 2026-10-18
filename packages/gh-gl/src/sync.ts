@@ -57,6 +57,7 @@ async function createScratchRepo(): Promise<ScratchRepo> {
 
   return {
     dir,
+    /** Remove the scratch repository. */
     cleanup: () => {
       rmSync(dir, { recursive: true, force: true });
     },
@@ -114,6 +115,7 @@ async function bootstrapGitlabDefaultBranch(
   }
 }
 
+/** Preview the first rebuild when GitLab has no default branch yet. */
 async function previewInitialRebuild(
   options: Readonly<SyncOptions>,
   githubDefaultBranch: string,
@@ -144,6 +146,7 @@ async function previewInitialRebuild(
 
 type RebuildAttempt = SyncOutcome | { kind: "push-rejected" };
 
+/** Rebuild the target branch once and report whether its push was rejected. */
 async function attemptRebuild(
   options: Readonly<SyncOptions>,
   branch: string,

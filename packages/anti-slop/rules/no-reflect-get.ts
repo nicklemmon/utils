@@ -15,8 +15,10 @@ export const noReflectGetRule = defineRule({
         "Replace `Reflect.get` with typed property access. Parse dynamic input into a named domain type before reading it.",
     },
   },
+  /** Register a visitor that detects calls to `Reflect.get`. */
   createOnce(context) {
     return {
+      /** Report calls to `Reflect.get`. */
       CallExpression(node) {
         if (node.callee.type === "Super" || node.callee.type === "V8IntrinsicExpression") return;
         if (isGlobalReflectMethodCall(context.sourceCode, node.callee, "get")) {

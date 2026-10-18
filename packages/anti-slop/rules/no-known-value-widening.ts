@@ -12,6 +12,7 @@ import {
 
 type FunctionExpression = ESTree.ArrowFunctionExpression | ESTree.Function;
 
+/** Remove wrappers that do not change an expression's value. */
 function unwrapExpression(expression: ESTree.Expression): ESTree.Expression {
   let current = expression;
   while (
@@ -26,6 +27,7 @@ function unwrapExpression(expression: ESTree.Expression): ESTree.Expression {
   return current;
 }
 
+/** Find the scope variable bound to an identifier. */
 function resolveVariable(
   sourceCode: SourceCode,
   identifier: ESTree.IdentifierReference,
@@ -39,6 +41,7 @@ function resolveVariable(
   return null;
 }
 
+/** Return the variable's declaration when it has one declarator. */
 function variableDeclarator(variable: Variable): ESTree.VariableDeclarator | null {
   if (variable.defs.length !== 1) return null;
   const [definition] = variable.defs;
@@ -47,6 +50,7 @@ function variableDeclarator(variable: Variable): ESTree.VariableDeclarator | nul
     : null;
 }
 
+/** Return whether a const variable is never reassigned. */
 function isStableConstVariable(variable: Variable, declarator: ESTree.VariableDeclarator): boolean {
   return (
     declarator.parent.type === "VariableDeclaration" &&
@@ -55,6 +59,7 @@ function isStableConstVariable(variable: Variable, declarator: ESTree.VariableDe
   );
 }
 
+/** Return whether an expression has known type evidence. */
 function hasKnownEvidence(
   sourceCode: SourceCode,
   expression: ESTree.Expression,
@@ -77,6 +82,7 @@ function hasKnownEvidence(
   return hasKnownEvidence(sourceCode, declarator.init, visitedVariables);
 }
 
+/** Classify an annotation as a target that can widen known evidence. */
 function annotationTarget(
   annotation: ESTree.TSTypeAnnotation | null | undefined,
   environment: TypeEnvironment,
@@ -86,6 +92,7 @@ function annotationTarget(
     : classifyWideningTarget(annotation.typeAnnotation, environment);
 }
 
+/** Find the nearest function that contains a node. */
 function enclosingFunction(node: ESTree.Node): FunctionExpression | null {
   let current: ESTree.Node | null = node.parent;
   while (current !== null && current.type !== "Program") {
@@ -101,12 +108,14 @@ function enclosingFunction(node: ESTree.Node): FunctionExpression | null {
   return null;
 }
 
+/** Return the source text for a property key. */
 function sourceKeyName(sourceCode: SourceCode, key: ESTree.PropertyKey): string {
   if (key.type === "Identifier" || key.type === "PrivateIdentifier") return key.name;
   if (key.type === "Literal") return String(key.value);
   return sourceCode.getText(key);
 }
 
+/** Return the function's name or a fallback for an anonymous function. */
 function functionName(sourceCode: SourceCode, owner: FunctionExpression | null): string {
   if (owner === null) return "anonymous function";
   if (owner.id !== null) return owner.id.name;
@@ -117,15 +126,18 @@ function functionName(sourceCode: SourceCode, owner: FunctionExpression | null):
   return "anonymous function";
 }
 
+/** Return whether an expression is an empty object literal. */
 function isEmptyObjectExpression(expression: ESTree.Expression): boolean {
   const unwrapped = unwrapExpression(expression);
   return unwrapped.type === "ObjectExpression" && unwrapped.properties.length === 0;
 }
 
+/** Return whether the target is a dictionary or generic container. */
 function isDictionaryAccumulatorTarget(destination: WideningTarget): boolean {
   return destination.kind === "open dictionary" || destination.kind === "generic container";
 }
 
+/** Return whether an assertion is nested inside another assertion. */
 function hasParentAssertion(node: ESTree.Node): boolean {
   return node.parent?.type === "TSAsExpression" || node.parent?.type === "TSTypeAssertion";
 }
@@ -143,9 +155,11 @@ export const noKnownValueWideningRule = defineRule({
         "The explicit {{target}} type on {{subject}} discards known type evidence. Keep inference, validate with `satisfies`, or use a named owner contract.",
     },
   },
+  /** Register visitors that detect explicit type widening. */
   createOnce(context) {
     let environment: TypeEnvironment | null = null;
 
+    /** Report known evidence when it flows into a broad target type. */
     const reportFlow = (
       expression: ESTree.Expression,
       destination: WideningTarget | null,
@@ -163,13 +177,16 @@ export const noKnownValueWideningRule = defineRule({
       });
     };
 
+    /** Classify an annotation in the current file's type environment. */
     const targetFromAnnotation = (annotation: ESTree.TSTypeAnnotation | null | undefined) =>
       environment === null ? null : annotationTarget(annotation, environment);
 
     return {
+      /** Build the file's type environment before checking expressions. */
       Program(node) {
         environment = createTypeEnvironment(node);
       },
+      /** Check annotated variable initializers for widening. */
       VariableDeclarator(node) {
         if (node.init === null || node.id.type !== "Identifier") return;
         reportFlow(
@@ -178,6 +195,7 @@ export const noKnownValueWideningRule = defineRule({
           `binding \`${node.id.name}\``,
         );
       },
+      /** Check class property initializers for widening. */
       PropertyDefinition(node) {
         if (node.value === null) return;
         reportFlow(
@@ -186,6 +204,7 @@ export const noKnownValueWideningRule = defineRule({
           `property \`${sourceKeyName(context.sourceCode, node.key)}\``,
         );
       },
+      /** Check accessor property initializers for widening. */
       AccessorProperty(node) {
         if (node.value === null) return;
         reportFlow(
@@ -194,6 +213,7 @@ export const noKnownValueWideningRule = defineRule({
           `property \`${sourceKeyName(context.sourceCode, node.key)}\``,
         );
       },
+      /** Check assignments to annotated variables for widening. */
       AssignmentExpression(node) {
         if (node.operator !== "=" || node.left.type !== "Identifier") return;
         const variable = resolveVariable(context.sourceCode, node.left);
@@ -206,6 +226,7 @@ export const noKnownValueWideningRule = defineRule({
           `binding \`${declarator.id.name}\``,
         );
       },
+      /** Check returned expressions against the function's return type. */
       ReturnStatement(node) {
         if (node.argument === null) return;
         const owner = enclosingFunction(node);
@@ -215,6 +236,7 @@ export const noKnownValueWideningRule = defineRule({
           `return value of \`${functionName(context.sourceCode, owner)}\``,
         );
       },
+      /** Check concise arrow bodies against their return type. */
       ArrowFunctionExpression(node) {
         if (node.body.type === "BlockStatement") return;
         reportFlow(
@@ -223,6 +245,7 @@ export const noKnownValueWideningRule = defineRule({
           `return value of \`${functionName(context.sourceCode, node)}\``,
         );
       },
+      /** Check `as` assertions for explicit widening. */
       TSAsExpression(node) {
         if (environment === null || hasParentAssertion(node)) return;
         reportFlow(
@@ -231,6 +254,7 @@ export const noKnownValueWideningRule = defineRule({
           "assertion",
         );
       },
+      /** Check angle-bracket assertions for explicit widening. */
       TSTypeAssertion(node) {
         if (environment === null || hasParentAssertion(node)) return;
         reportFlow(

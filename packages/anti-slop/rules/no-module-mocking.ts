@@ -4,6 +4,7 @@ import { defineRule } from "@oxlint/plugins";
 
 const moduleMockMethods = new Set(["doMock", "mock", "unstable_mockModule"]);
 
+/** Find the scope variable bound to an identifier. */
 function resolveVariable(
   sourceCode: SourceCode,
   identifier: ESTree.IdentifierReference,
@@ -17,11 +18,13 @@ function resolveVariable(
   return null;
 }
 
+/** Return the imported name for an identifier or member expression. */
 function importedName(node: ESTree.Node): string | null {
   if (node.type !== "ImportSpecifier") return null;
   return node.imported.type === "Identifier" ? node.imported.name : node.imported.value;
 }
 
+/** Return whether an expression refers to a test framework object. */
 function isTestFrameworkObject(
   sourceCode: SourceCode,
   expression: ESTree.Expression,
@@ -50,6 +53,7 @@ function isTestFrameworkObject(
   });
 }
 
+/** Return whether a call invokes a module-mocking API. */
 function moduleMockCall(sourceCode: SourceCode, callee: ESTree.Expression): boolean {
   if (!("property" in callee) || !("object" in callee) || !("computed" in callee)) return false;
   if (!isTestFrameworkObject(sourceCode, callee.object)) return false;
@@ -80,8 +84,10 @@ export const noModuleMockingRule = defineRule({
         "Replace module mocking with dependency injection through a real interface, service layer, or faithful test implementation.",
     },
   },
+  /** Register a visitor that detects module-mocking calls. */
   createOnce(context) {
     return {
+      /** Report calls to test framework module-mocking APIs. */
       CallExpression(node) {
         if (node.callee.type === "Super" || node.callee.type === "V8IntrinsicExpression") return;
         if (moduleMockCall(context.sourceCode, node.callee)) {

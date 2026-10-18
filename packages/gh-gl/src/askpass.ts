@@ -29,6 +29,7 @@ export function createAskpass(token: string): Askpass {
 
   return {
     env: { GIT_ASKPASS: scriptPath, GIT_ASKPASS_TOKEN: token },
+    /** Remove the temporary askpass helper. */
     cleanup: () => {
       rmSync(dir, { recursive: true, force: true });
     },

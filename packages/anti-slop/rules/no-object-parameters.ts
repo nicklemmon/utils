@@ -14,6 +14,7 @@ type ParameterOwner =
   | ESTree.TSFunctionType
   | ESTree.TSMethodSignature;
 
+/** Return the type annotation for a function parameter. */
 function parameterAnnotation(parameter: Parameter): ESTree.TSTypeAnnotation | null | undefined {
   if (parameter.type === "TSParameterProperty") {
     return parameterAnnotation(parameter.parameter);
@@ -27,6 +28,7 @@ function parameterAnnotation(parameter: Parameter): ESTree.TSTypeAnnotation | nu
   return parameter.typeAnnotation;
 }
 
+/** Return the source text for a parameter's name. */
 function parameterName(parameter: Parameter, sourceCode: SourceCode): string {
   return parameter.type === "Identifier"
     ? parameter.name
@@ -46,9 +48,11 @@ export const noObjectParametersRule = defineRule({
         "Parameter `{{parameter}}` uses the broad `object` type. Accept a named owner type; parse external input at its boundary before calling this function.",
     },
   },
+  /** Register visitors that check function parameter types. */
   createOnce(context) {
     const aliases = new Map<string, ESTree.TSType>();
 
+    /** Return whether a type alias resolves to the broad `object` type. */
     const resolvesToObject = (
       type: ESTree.TSType,
       shadowedAliases: ReadonlySet<string>,
@@ -78,6 +82,7 @@ export const noObjectParametersRule = defineRule({
       return resolvesToObject(alias, shadowedAliases, nextVisited);
     };
 
+    /** Report function parameters typed as broad `object`. */
     const checkParameters = (node: ParameterOwner) => {
       const shadowedAliases = lexicalTypeParameterNames(node, context.sourceCode.visitorKeys);
       for (const parameter of node.params) {
@@ -93,6 +98,7 @@ export const noObjectParametersRule = defineRule({
     };
 
     return {
+      /** Save type information for resolving local aliases. */
       Program(node) {
         aliases.clear();
         for (const statement of node.body) {

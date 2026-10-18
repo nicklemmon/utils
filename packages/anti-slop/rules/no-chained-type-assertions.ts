@@ -4,10 +4,12 @@ import { defineRule } from "@oxlint/plugins";
 
 type TypeAssertionExpression = ESTree.TSAsExpression | ESTree.TSTypeAssertion;
 
+/** Return whether a node is a TypeScript type assertion. */
 function isTypeAssertionExpression(node: ESTree.Node): node is TypeAssertionExpression {
   return node.type === "TSAsExpression" || node.type === "TSTypeAssertion";
 }
 
+/** Remove parenthesized expression wrappers. */
 function unwrapParenthesizedExpression(expression: ESTree.Expression): ESTree.Expression {
   let current = expression;
   while (current.type === "ParenthesizedExpression") {
@@ -16,6 +18,7 @@ function unwrapParenthesizedExpression(expression: ESTree.Expression): ESTree.Ex
   return current;
 }
 
+/** Return whether an assertion uses `as const` or `<const>`. */
 function isConstAssertion(node: TypeAssertionExpression): boolean {
   const { typeAnnotation } = node;
   return (
@@ -25,6 +28,7 @@ function isConstAssertion(node: TypeAssertionExpression): boolean {
   );
 }
 
+/** Return whether this assertion is outermost in its chain. */
 function isOutermostAssertionInChain(node: TypeAssertionExpression): boolean {
   let current: ESTree.Expression = node;
   let parent = node.parent;
@@ -37,6 +41,7 @@ function isOutermostAssertionInChain(node: TypeAssertionExpression): boolean {
   return !isTypeAssertionExpression(parent) || parent.expression !== current;
 }
 
+/** Return whether the chain contains multiple assertions and any non-const assertion. */
 function isForbiddenAssertionChain(node: TypeAssertionExpression): boolean {
   let assertionCount = 0;
   let hasNonConstAssertion = false;
@@ -67,7 +72,9 @@ export const noChainedTypeAssertionsRule = defineRule({
         "This assertion chain discards type evidence. Keep the original precise type, or parse untrusted input at its boundary before narrowing it.",
     },
   },
+  /** Register visitors that detect chained assertions. */
   createOnce(context) {
+    /** Report a forbidden assertion chain once. */
     const checkTypeAssertion = (node: TypeAssertionExpression) => {
       if (!isOutermostAssertionInChain(node) || !isForbiddenAssertionChain(node)) return;
       context.report({ node, messageId: "chained" });
