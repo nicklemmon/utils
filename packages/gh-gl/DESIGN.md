@@ -29,6 +29,27 @@ pointing at the installed package. This lets varlock load the package's
 `cli-impl.ts` validates the command flags, reads tokens from varlock, checks
 which HTTPS remotes need tokens, calls `sync`, and formats the outcome.
 
+The shim exists because `varlock/env` does not parse `.env.schema`. It only
+reads the resolved values that `varlock run` puts in the child environment as
+`__VARLOCK_ENV`. `varlock run` reads `.env.schema` from the working directory
+and does not search parent directories. The shim resolves the `varlock`
+executable from the installed package, not from `PATH`, because a global
+install can omit it from `PATH`. The cost is a second Node process per run. We
+accept this cost. It keeps schema lookup independent of the caller's working
+directory, and it does not depend on varlock's internal `loadEnvGraph` API.
+
+### Authentication
+
+GitHub and GitLab each use HTTPS or SSH. Each remote selects its scheme from
+its own URL.
+
+`.env.schema` marks `GITHUB_TOKEN` and `GITLAB_TOKEN` as `@sensitive` and
+`@optional`. Varlock masks both values. A static schema cannot express which
+token is required, because that depends on the URL scheme. `cli-impl.ts` checks
+this after it parses the URLs. An HTTPS remote without its token fails with an
+error that names the missing variable and the flag that requires it. An SSH
+remote never requires a token.
+
 HTTPS remotes use temporary `GIT_ASKPASS` helpers. Each token is passed to Git
 through the child process environment. The token is not written to the helper
 script, a remote URL, command arguments, or Git configuration. SSH remotes use
@@ -53,6 +74,15 @@ overlay. If both captured values match the trailers, the run is a no-op.
 Otherwise, the run extracts GitHub's tree into a fresh scratch repository with
 `git archive` and `tar`. It applies the captured overlay, stages the resulting
 tree, writes the new trailers in a commit, and pushes that commit to GitLab.
+
+The commit contains the paths that `git archive` extracts. The base index starts
+as the GitHub tree. The rebuild removes each path that the archive omits: paths
+with the `export-ignore` attribute and all gitlinks (submodules). Files with the
+`export-subst` attribute get their expanded content. All other upstream paths
+keep their exact GitHub blob IDs and modes, so upstream `.gitattributes` line
+ending rules and filters do not change their bytes. Upstream `.gitignore` rules
+do not remove tracked upstream files. Git LFS pointer files are committed as
+pointer files.
 The default branch is rebuilt because its tree has no human-owned changes to
 preserve.
 
@@ -79,6 +109,14 @@ the fingerprint differ from the files staged by that attempt. Capture is not an
 atomic filesystem snapshot; the overlay must stay stable while capture runs. A
 retry makes a new capture.
 
+An overlay file can be any file in the directory, including files that a
+`.gitignore` matches, such as `.env` or `.DS_Store`. Do not keep secrets or
+local files in the overlay directory.
+
+The overlay is a local directory path. `gh-gl` does not know its origin. One
+convention is to keep the overlay source on a dedicated branch of the private
+GitLab repo, such as `overlay-source`, so that changes get merge request review.
+
 ## Prototype branch merge
 
 The merge path fetches the target branch and the current GitLab default branch
@@ -102,6 +140,24 @@ that push loses a race, `gh-gl` checks GitLab's default branch again. A dry run
 does not bootstrap GitLab. A requested prototype branch cannot be created by
 the sync process; it must already exist along with the GitLab default branch.
 
+## Operational assumptions
+
+`gh-gl` depends on these conditions. It does not enforce them.
+
+- GitLab branch protection blocks direct human pushes to the default branch.
+  The rebuild discards any commit that is not a sync commit.
+- Two runs do not sync the same branch at the same time. The rebuild retry
+  handles one transient race. It is not designed for continuous concurrent
+  writers.
+
+## Exit codes
+
+Exit code `0` covers both a pushed change and a no-op. Both mean that the branch
+is in the correct state. A scheduled no-op is the most common run, and CI
+systems treat any other code as a failure. Code `1` is a merge conflict that
+needs a person. Code `2` is any other error. Output content carries more detail;
+`--json` prints it as one object.
+
 ## Resource ownership and limits
 
 Each scratch operation creates a fresh repository under the operating system's
@@ -117,4 +173,6 @@ CLI does not manage deployments.
 
 The package tests use real local Git repositories to exercise rebuilds,
 merges, dry runs, push races, and conflict cleanup. They do not verify
-authentication against live GitHub or GitLab servers.
+authentication against live GitHub or GitLab servers. No automated test runs
+the built `dist/cli.js` through a real `varlock run` subprocess. Unit tests
+cover the token checks. The varlock wiring was verified by hand.

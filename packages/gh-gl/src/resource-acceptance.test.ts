@@ -48,12 +48,14 @@ const askpassEnvSchema = z.object({
 
 describe("sync resource acceptance", () => {
   const packageDir = path.resolve(import.meta.dirname, "..");
-  const buildDir = mkdtempSync(path.join(packageDir, ".gh-gl-resource-test-"));
+  // The build must be inside the package so the bundle resolves its dependencies.
+  let buildDir = "";
   const cleanups: Array<() => void> = [];
 
   beforeAll(async () => {
+    buildDir = mkdtempSync(path.join(packageDir, ".gh-gl-resource-test-"));
     await execa(
-      path.resolve(packageDir, "../../node_modules/.bin/tsdown"),
+      "tsdown",
       [
         "src/sync.ts",
         "--no-config",
@@ -66,12 +68,12 @@ describe("sync resource acceptance", () => {
         "--logLevel",
         "error",
       ],
-      { cwd: packageDir },
+      { cwd: packageDir, preferLocal: true },
     );
   });
 
   afterAll(() => {
-    rmSync(buildDir, { recursive: true, force: true });
+    if (buildDir !== "") rmSync(buildDir, { recursive: true, force: true });
   });
   afterEach(() => {
     for (const cleanup of cleanups.splice(0)) cleanup();

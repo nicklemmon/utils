@@ -159,6 +159,22 @@ describe("captured overlay", () => {
     expect(after.fingerprint).not.toBe(before.fingerprint);
   });
 
+  it("ignores group and other execute bits like Git", async () => {
+    const scratchDir = await scratch();
+    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
+    cleanups.push(() => {
+      rmSync(overlayDir, { recursive: true, force: true });
+    });
+    const script = path.join(overlayDir, "run.sh");
+    writeFileSync(script, "#!/bin/sh\nexit 0\n");
+    chmodSync(script, 0o611);
+
+    const snapshot = await captureOverlay(scratchDir, overlayDir);
+    const { stdout } = await execa("git", ["-C", scratchDir, "ls-tree", snapshot.tree]);
+
+    expect(stdout).toMatch(/^100644 blob [0-9a-f]{40}\trun\.sh$/u);
+  });
+
   it("returns the same fingerprint for unchanged overlay content", async () => {
     const scratchDir = await scratch();
     const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));

@@ -46,6 +46,22 @@ tester.run("anti-slop/no-unknown-type-aliases", noUnknownTypeAliasesRule, {
       errors: [{ messageId: "unknownAlias", line: 1, column: 5 }],
     },
     {
+      code: "type Value = unknown; type Mid = Value; type Box<Value> = Mid;",
+      errors: [
+        { messageId: "unknownAlias", line: 1, column: 5 },
+        { messageId: "unknownAlias", line: 1, column: 27 },
+        { messageId: "unknownAlias", line: 1, column: 45 },
+      ],
+    },
+    {
+      code: "type Value = unknown; type Box<Value> = (Value);",
+      errors: [{ messageId: "unknownAlias", line: 1, column: 5 }],
+    },
+    {
+      code: "type Value = string; class C { static { type Value = unknown; } } type Exposed = Value;",
+      errors: [{ messageId: "unknownAlias", line: 1, column: 45 }],
+    },
+    {
       code: "type Value = unknown; namespace Other { export type Value = string; } namespace N { import Value = Other.Value; export type Local = Value; }",
       errors: [{ messageId: "unknownAlias", line: 1, column: 5 }],
     },

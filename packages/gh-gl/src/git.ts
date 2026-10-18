@@ -289,28 +289,17 @@ export async function abortMergeConflict(dir: string): Promise<void> {
 /**
  * Extract the tree at `ref` into `destDir` via `git archive | tar -x`.
  *
- * Preserves file modes and symlinks, unlike a plain filesystem copy.
+ * Preserves file modes and symlinks, unlike a plain filesystem copy. Streams the archive without a
+ * size limit. If `tar` fails, its error is thrown and the `git archive` result is in
+ * `error.pipedFrom`. If only `git archive` fails, its error is thrown.
  *
  * @param dir - Scratch repo that contains `ref`.
  * @param ref - Commit-ish such as `FETCH_HEAD` or a branch name.
  * @param destDir - Existing directory that receives the extracted tree.
  */
 export async function extractTree(dir: string, ref: string, destDir: string): Promise<void> {
-  const archive = execa("git", ["-C", dir, "archive", ref], {
-    encoding: "buffer",
-  });
-  const extract = execa("tar", ["-x", "-C", destDir]);
-
-  if (archive.stdout === null) {
-    throw new Error("git archive produced no stdout stream");
-  }
-
-  archive.stdout.pipe(extract.stdin);
-  const results = await Promise.allSettled([archive, extract]);
-
-  for (const result of results) {
-    if (result.status === "rejected") {
-      throw result.reason;
-    }
-  }
+  await execa("git", ["-C", dir, "archive", "--end-of-options", ref], { buffer: false }).pipe(
+    "tar",
+    ["-x", "-C", destDir],
+  );
 }

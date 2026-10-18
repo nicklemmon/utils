@@ -63,15 +63,7 @@ export const noUnknownTypeAliasesRule = defineRule({
               includePromises: false,
               /** Find type parameters that shadow aliases at this reference. */
               typeParameterScopes(type) {
-                const scopes = new Map(
-                  lexicalTypeParameterScopes(type, context.sourceCode.visitorKeys),
-                );
-                for (const parameter of alias.typeParameters?.params ?? []) {
-                  if (!scopes.has(parameter.name.name)) {
-                    scopes.set(parameter.name.name, alias);
-                  }
-                }
-                return scopes;
+                return lexicalTypeParameterScopes(type, context.sourceCode.visitorKeys);
               },
             })
           ) {

@@ -99,6 +99,49 @@ describe("overlay acceptance", () => {
     expect(payload.stdout).toBe("overlay\r\n");
   });
 
+  it("omits upstream export-ignore paths and gitlinks and keeps upstream blob bytes", async () => {
+    const { gitlab, options } = await fixture();
+    const github = await createFixtureRepo();
+    cleanups.push(github.cleanup);
+    await github.commit("Seed archive rules", {
+      ".gitattributes": "docs/ export-ignore\ncrlf.txt text eol=crlf\nversion.txt export-subst\n",
+      "version.txt": "$Format:%H$\n",
+      "docs/guide.md": "internal",
+      "crlf.txt": "one\ntwo\n",
+      "README.md": "upstream",
+    });
+    await execa("git", [
+      "-C",
+      github.dir,
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      "160000,1111111111111111111111111111111111111111,vendor/sub",
+    ]);
+    await execa("git", ["-C", github.dir, "commit", "-m", "Add gitlink"]);
+    const { stdout: githubSha } = await execa("git", ["-C", github.dir, "rev-parse", "HEAD"]);
+
+    expect(await sync(Object.assign({}, options, { githubUrl: github.dir }))).toMatchObject({
+      kind: "rebuilt",
+    });
+
+    const { stdout: paths } = await execa("git", [
+      "--git-dir",
+      gitlab.dir,
+      "ls-tree",
+      "-r",
+      "--name-only",
+      "main",
+    ]);
+    expect(paths.split("\n")).toEqual([".gitattributes", "README.md", "crlf.txt", "version.txt"]);
+    const crlf = await execa("git", ["--git-dir", gitlab.dir, "show", "main:crlf.txt"], {
+      stripFinalNewline: false,
+    });
+    expect(crlf.stdout).toBe("one\ntwo\n");
+    const version = await execa("git", ["--git-dir", gitlab.dir, "show", "main:version.txt"]);
+    expect(version.stdout).toBe(githubSha);
+  });
+
   it("detects edits to overlay files excluded by its own ignore rules", async () => {
     const { gitlab, overlayDir, options } = await fixture();
     writeFileSync(path.join(overlayDir, ".gitignore"), "tracked.txt\nnew.txt\n");

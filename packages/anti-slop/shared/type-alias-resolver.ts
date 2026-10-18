@@ -29,16 +29,21 @@ function isSwitchDiscriminant(node: ESTree.Node, switchStatement: ESTree.Node): 
   );
 }
 
+/** Check whether a node is a lexical scope that can contain a type declaration for `node`. */
+function isLexicalScope(current: ESTree.Node, node: ESTree.Node): boolean {
+  return (
+    current.type === "Program" ||
+    current.type === "BlockStatement" ||
+    current.type === "StaticBlock" ||
+    current.type === "TSModuleBlock" ||
+    (current.type === "SwitchStatement" && !isSwitchDiscriminant(node, current))
+  );
+}
+
 /** Find the nearest lexical scope that can contain a type declaration. */
 function lexicalScope(node: ESTree.Node): ESTree.Node {
   let current: ESTree.Node | null = node;
-  while (
-    current !== null &&
-    current.type !== "Program" &&
-    current.type !== "BlockStatement" &&
-    current.type !== "TSModuleBlock" &&
-    (current.type !== "SwitchStatement" || isSwitchDiscriminant(node, current))
-  ) {
+  while (current !== null && !isLexicalScope(current, node)) {
     current = current.parent;
   }
   return current ?? node;
@@ -47,13 +52,7 @@ function lexicalScope(node: ESTree.Node): ESTree.Node {
 /** Find the parent lexical scope of a declaration scope. */
 function parentLexicalScope(node: ESTree.Node): ESTree.Node | null {
   let current: ESTree.Node | null = node.parent;
-  while (
-    current !== null &&
-    current.type !== "Program" &&
-    current.type !== "BlockStatement" &&
-    current.type !== "TSModuleBlock" &&
-    (current.type !== "SwitchStatement" || isSwitchDiscriminant(node, current))
-  ) {
+  while (current !== null && !isLexicalScope(current, node)) {
     current = current.parent;
   }
   return current;

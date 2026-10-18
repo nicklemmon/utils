@@ -16,6 +16,30 @@ const TreeEntrySchema = z.object({
   path: z.string(),
 });
 
+/** An index update. Mode "0" removes the path from the index. */
+type IndexEntry = Readonly<{ mode: string; objectId: string; path: string }>;
+const ZERO_OBJECT_ID = "0".repeat(40);
+
+/**
+ * Write index entries with one `update-index --index-info` call.
+ *
+ * @param indexPath - Index file to write. The default is the scratch repository's index.
+ */
+async function writeIndexEntries(
+  scratchDir: string,
+  entries: ReadonlyArray<IndexEntry>,
+  indexPath?: string,
+): Promise<void> {
+  if (entries.length === 0) return;
+
+  const input = entries.map((entry) => `${entry.mode} ${entry.objectId}\t${entry.path}\0`).join("");
+  await execa(
+    "git",
+    ["-C", scratchDir, "update-index", "--add", "--replace", "-z", "--index-info"],
+    indexPath === undefined ? { input } : { input, env: { GIT_INDEX_FILE: indexPath } },
+  );
+}
+
 /** Store overlay files as Git blobs and return their tree entry metadata. */
 async function collectOverlayEntries(
   scratchDir: string,
@@ -45,8 +69,8 @@ async function collectOverlayEntries(
       // oxlint-disable-next-line eslint/no-await-in-loop -- Read each source entry once.
       contents = await readlink(sourcePath, { encoding: "buffer" });
     } else if (sourceStat.isFile()) {
-      // oxlint-disable-next-line eslint/no-bitwise -- Git executable mode uses the Unix execute bits.
-      mode = (sourceStat.mode & 0o111) === 0 ? "100644" : "100755";
+      // oxlint-disable-next-line eslint/no-bitwise -- Git reads only the owner execute bit.
+      mode = (sourceStat.mode & 0o100) === 0 ? "100644" : "100755";
       // oxlint-disable-next-line eslint/no-await-in-loop -- Read each source entry once.
       contents = await readFile(sourcePath);
     } else {
@@ -90,26 +114,7 @@ export async function captureOverlay(
     const sourceRoot = path.resolve(sourceDir);
     const entries = await collectOverlayEntries(path.resolve(scratchDir), sourceRoot, sourceRoot);
 
-    for (const entry of entries) {
-      // oxlint-disable-next-line eslint/no-await-in-loop -- Update-index writes must be serial.
-      await execa(
-        "git",
-        [
-          "-C",
-          scratchDir,
-          "update-index",
-          "--add",
-          "--cacheinfo",
-          entry.mode,
-          entry.objectId,
-          entry.path,
-        ],
-        {
-          env: { GIT_INDEX_FILE: indexPath },
-        },
-      );
-    }
-
+    await writeIndexEntries(scratchDir, entries, indexPath);
     const { stdout } = await execa("git", ["-C", scratchDir, "write-tree"], {
       env: { GIT_INDEX_FILE: indexPath },
     });
@@ -219,35 +224,112 @@ async function applyOverlay(
   }
 }
 
-/**
- * Replace upstream index entries with the exact blob IDs and modes from the captured overlay.
- *
- * @param scratchDir - Scratch repository with an index based on the upstream commit.
- * @param snapshot - Captured overlay tree to add to the index.
- */
-async function stageOverlayTree(scratchDir: string, snapshot: OverlaySnapshot): Promise<void> {
-  const entries = await readTreeEntries(scratchDir, snapshot.tree);
+/** Report if a path exists without following a final symlink. */
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await lstat(filePath);
+    return true;
+  } catch (error) {
+    const parsed = FsErrorSchema.safeParse(error);
 
-  for (const entry of entries) {
-    // oxlint-disable-next-line eslint/no-await-in-loop -- Update-index writes must be serial.
-    await execa("git", [
-      "-C",
-      scratchDir,
-      "update-index",
-      "--add",
-      "--replace",
-      "--cacheinfo",
-      entry.mode,
-      entry.objectId,
-      entry.path,
-    ]);
+    if (parsed.success && (parsed.data.code === "ENOENT" || parsed.data.code === "ENOTDIR")) {
+      return false;
+    }
+    throw error;
   }
 }
 
+/** Return the paths that have the `export-subst` attribute set. */
+async function listExportSubstPaths(
+  scratchDir: string,
+  paths: ReadonlyArray<string>,
+): Promise<Array<string>> {
+  if (paths.length === 0) return [];
+
+  const { stdout } = await execa(
+    "git",
+    ["-C", scratchDir, "check-attr", "--cached", "-z", "--stdin", "export-subst"],
+    { input: paths.map((entryPath) => `${entryPath}\0`).join("") },
+  );
+  const fields = stdout.split("\0");
+
+  // Output has three fields per input path, in input order: path, attribute, value.
+  return paths.filter(
+    (entryPath, index) => fields[index * 3] === entryPath && fields[index * 3 + 2] === "set",
+  );
+}
+
 /**
- * Apply a captured overlay to the scratch repo and replace its upstream index entries.
+ * Make the upstream index match the paths and content that `git archive` extracted.
  *
- * @param scratchDir - Scratch repository with the upstream worktree.
+ * The index starts as the raw upstream tree. `git archive` omits `export-ignore` paths and
+ * gitlinks, and it expands `export-subst` files. Remove index entries that are absent from the
+ * extracted worktree. Remove all gitlinks. Store the extracted content of each `export-subst` file.
+ * Keep the upstream blob IDs of all other paths, so that worktree conversion does not change
+ * upstream bytes.
+ *
+ * @param scratchDir - Scratch repository whose index holds the upstream tree and whose worktree
+ *   holds the extracted archive.
+ */
+async function matchArchiveContent(scratchDir: string): Promise<void> {
+  const { stdout } = await execa("git", ["-C", scratchDir, "ls-files", "--stage", "-z"]);
+  const indexEntries = stdout
+    .split("\0")
+    .filter((line) => line !== "")
+    .map((line) => {
+      const tab = line.indexOf("\t");
+      const [mode, objectId] = line.slice(0, tab).split(" ");
+
+      return { mode, objectId, path: line.slice(tab + 1) };
+    });
+  const entries = z.array(TreeEntrySchema.omit({ type: true })).parse(indexEntries);
+  const present = await Promise.all(
+    entries.map(
+      async (entry) =>
+        entry.mode !== "160000" && (await pathExists(path.join(scratchDir, entry.path))),
+    ),
+  );
+  const kept: Array<IndexEntry> = [];
+  const removed: Array<IndexEntry> = [];
+  for (const [index, entry] of entries.entries()) {
+    if (present[index] === true) kept.push(entry);
+    else removed.push({ mode: "0", objectId: ZERO_OBJECT_ID, path: entry.path });
+  }
+  const keptFiles = kept.filter((entry) => entry.mode === "100644" || entry.mode === "100755");
+  const substPaths = new Set(
+    await listExportSubstPaths(
+      scratchDir,
+      keptFiles.map((entry) => entry.path),
+    ),
+  );
+  const substituted = await Promise.all(
+    keptFiles
+      .filter((entry) => substPaths.has(entry.path))
+      .map(async (entry) => {
+        // Hash with filters, like the `git add` of the extracted file that this step replaces.
+        const { stdout: objectId } = await execa("git", [
+          "-C",
+          scratchDir,
+          "hash-object",
+          "-w",
+          "--",
+          entry.path,
+        ]);
+        return { mode: entry.mode, objectId, path: entry.path };
+      }),
+  );
+
+  await writeIndexEntries(scratchDir, [...removed, ...substituted]);
+}
+
+/**
+ * Apply a captured overlay to the scratch repo and stage it over the upstream content.
+ *
+ * The scratch worktree must hold the `git archive` output of `upstreamCommit`. The base index is
+ * the upstream tree minus the paths that the archive omits. Overlay entries then replace index
+ * entries with their exact captured blob IDs and modes.
+ *
+ * @param scratchDir - Scratch repository with the extracted upstream worktree.
  * @param snapshot - Captured overlay tree and fingerprint.
  * @param upstreamCommit - Commit whose tree forms the base index.
  */
@@ -257,6 +339,7 @@ export async function applyCapturedOverlay(
   upstreamCommit: string,
 ): Promise<void> {
   await execa("git", ["-C", scratchDir, "read-tree", upstreamCommit]);
+  await matchArchiveContent(scratchDir);
   await applyOverlay(scratchDir, snapshot, scratchDir);
-  await stageOverlayTree(scratchDir, snapshot);
+  await writeIndexEntries(scratchDir, await readTreeEntries(scratchDir, snapshot.tree));
 }
