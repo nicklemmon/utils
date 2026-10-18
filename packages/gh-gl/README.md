@@ -4,8 +4,6 @@
 into a GitLab repo. It also adds GitLab-only files, such as
 `.gitlab-ci.yml`, on top of the copied files.
 
-Full design details are in [PLAN.md](./PLAN.md).
-
 ## What it does
 
 `gh-gl` manages two repos:
@@ -172,6 +170,3 @@ console.log(outcome.kind); // "no-op", "rebuilt", "merged", or "conflict"
   above).
 - `gh-gl` does not deploy to GitLab Pages. Configure that through your
   overlay's `.gitlab-ci.yml` file instead.
-
-For the full design and the reasoning behind these limits, read
-[PLAN.md](./PLAN.md).
