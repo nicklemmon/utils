@@ -83,9 +83,11 @@ function distanceToAncestor(node: ESTree.Node, ancestor: ESTree.Node): number {
   return Number.POSITIVE_INFINITY;
 }
 
-/** Read a named interface or class declaration. */
+/** Read a named interface, class, enum, or import-equals declaration. */
 function declaredTypeName(node: ESTree.Node): string | null {
   if (node.type === "TSInterfaceDeclaration") return node.id.name;
+  if (node.type === "TSEnumDeclaration") return node.id.name;
+  if (node.type === "TSImportEqualsDeclaration") return node.id.name;
   if (node.type !== "ClassDeclaration") return null;
   return node.id?.name ?? null;
 }
@@ -94,7 +96,7 @@ function declaredTypeName(node: ESTree.Node): string | null {
  * Index local aliases and resolve them in their declaration scope with cycle protection.
  *
  * @param declarations - Aliases collected from the current file.
- * @param shadowingDeclarations - Local interfaces, classes, and imports in the current file.
+ * @param shadowingDeclarations - Local declarations and imports that shadow aliases.
  * @returns A resolver isolated to those declarations.
  */
 export function createTypeAliasResolver(

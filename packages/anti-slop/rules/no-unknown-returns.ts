@@ -48,12 +48,20 @@ export const noUnknownReturnsRule = defineRule({
       TSInterfaceDeclaration(node) {
         shadowingDeclarations.push(node);
       },
+      /** Collect enums that can shadow type aliases. */
+      TSEnumDeclaration(node) {
+        shadowingDeclarations.push(node);
+      },
       /** Collect classes that can shadow type aliases. */
       ClassDeclaration(node) {
         if (node.id !== null) shadowingDeclarations.push(node);
       },
       /** Collect imports that can shadow type aliases. */
       ImportDeclaration(node) {
+        shadowingDeclarations.push(node);
+      },
+      /** Collect import aliases that can shadow type aliases. */
+      TSImportEqualsDeclaration(node) {
         shadowingDeclarations.push(node);
       },
       /** Collect arrow functions for return type checks. */

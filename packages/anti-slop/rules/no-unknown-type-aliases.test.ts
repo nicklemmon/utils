@@ -41,5 +41,13 @@ tester.run("anti-slop/no-unknown-type-aliases", noUnknownTypeAliasesRule, {
         { messageId: "unknownAlias", line: 1, column: 46 },
       ],
     },
+    {
+      code: "type Value = unknown; function outer() { enum Value { A } type Local = Value; }",
+      errors: [{ messageId: "unknownAlias", line: 1, column: 5 }],
+    },
+    {
+      code: "type Value = unknown; namespace Other { export type Value = string; } namespace N { import Value = Other.Value; export type Local = Value; }",
+      errors: [{ messageId: "unknownAlias", line: 1, column: 5 }],
+    },
   ],
 });
