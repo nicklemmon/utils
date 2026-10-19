@@ -4,8 +4,6 @@
 into a GitLab repo. It also adds GitLab-only files, such as
 `.gitlab-ci.yml`, on top of the copied files.
 
-Full design details are in [PLAN.md](./PLAN.md).
-
 ## What it does
 
 `gh-gl` manages two repos:
@@ -75,6 +73,23 @@ its default branch — there's nothing to sync from an empty GitHub repo.
 GitHub's tree as-is, on top of a rebuild — it does not validate their
 content. An invalid `.gitlab-ci.yml` still gets copied and pushed; GitLab
 only reports the problem when it tries to run a pipeline against it.
+
+> [!WARNING]
+> `gh-gl` pushes every file in the overlay directory. This includes files that
+> a `.gitignore` matches, such as `.env`, `.DS_Store`, and editor backups. Keep
+> secrets and local files out of the overlay directory.
+
+Only entries named `.git` are excluded. Overlay files replace matching upstream
+paths. Git modes and symlink targets are preserved. Git filters do not change
+captured overlay bytes.
+
+The upstream content matches `git archive`. Paths with the `export-ignore`
+attribute and submodules are left out. Other upstream files keep their exact
+GitHub bytes.
+
+Each rebuild attempt captures the overlay once. The fingerprint and committed
+files use that capture. Keep the directory stable during capture. A push retry
+captures the directory again.
 
 A `.gitlab-ci.yml` needs at least one runnable job, not just `stages`:
 
@@ -164,6 +179,3 @@ console.log(outcome.kind); // "no-op", "rebuilt", "merged", or "conflict"
   above).
 - `gh-gl` does not deploy to GitLab Pages. Configure that through your
   overlay's `.gitlab-ci.yml` file instead.
-
-For the full design and the reasoning behind these limits, read
-[PLAN.md](./PLAN.md).

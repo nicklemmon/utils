@@ -1,5 +1,4 @@
-import { execa } from "execa";
-import path from "node:path";
+import { execa, ExecaError } from "execa";
 import { z } from "zod";
 
 import type { AskpassEnv } from "./askpass.js";
@@ -138,6 +137,21 @@ export async function resolveRef(dir: string, ref: string): Promise<string> {
   return stdout;
 }
 
+/** Stage every change in the scratch repo at `dir`. */
+async function stageAll(dir: string): Promise<void> {
+  await execa("git", ["-C", dir, "add", "--all"]);
+}
+
+/**
+ * Commit the current index in the scratch repo at `dir`.
+ *
+ * @param dir - Scratch repo from {@link initScratchRepo}.
+ * @param message - Commit message body passed to `git commit -m`.
+ */
+export async function commitStagedChanges(dir: string, message: string): Promise<void> {
+  await execa("git", ["-C", dir, "commit", "-m", message]);
+}
+
 /**
  * Stage every change in the scratch repo's worktree and commit it.
  *
@@ -145,8 +159,8 @@ export async function resolveRef(dir: string, ref: string): Promise<string> {
  * @param message - Commit message body passed to `git commit -m`.
  */
 export async function commitAll(dir: string, message: string): Promise<void> {
-  await execa("git", ["-C", dir, "add", "--all"]);
-  await execa("git", ["-C", dir, "commit", "-m", message]);
+  await stageAll(dir);
+  await commitStagedChanges(dir, message);
 }
 
 /**
@@ -275,49 +289,34 @@ export async function abortMergeConflict(dir: string): Promise<void> {
 /**
  * Extract the tree at `ref` into `destDir` via `git archive | tar -x`.
  *
- * Preserves file modes and symlinks, unlike a plain filesystem copy.
+ * Preserves file modes and symlinks, unlike a plain filesystem copy. Streams the archive without a
+ * size limit. If `git archive` fails, its error is thrown, because it is the root cause. Otherwise
+ * a `tar` failure is thrown and the `git archive` result is in `error.pipedFrom`.
  *
  * @param dir - Scratch repo that contains `ref`.
  * @param ref - Commit-ish such as `FETCH_HEAD` or a branch name.
  * @param destDir - Existing directory that receives the extracted tree.
  */
 export async function extractTree(dir: string, ref: string, destDir: string): Promise<void> {
-  const archive = execa("git", ["-C", dir, "archive", ref], {
-    encoding: "buffer",
-  });
-  const extract = execa("tar", ["-x", "-C", destDir]);
+  try {
+    await execa("git", ["-C", dir, "archive", "--end-of-options", ref], { buffer: false }).pipe(
+      "tar",
+      ["-x", "-C", destDir],
+    );
+  } catch (error) {
+    if (error instanceof ExecaError) {
+      // GNU tar also rejects the empty stream from a failed `git archive`. Report the Git error.
+      for (const result of error.pipedFrom) {
+        if (
+          result instanceof Error &&
+          result instanceof ExecaError &&
+          result.signal === undefined
+        ) {
+          throw result;
+        }
+      }
+    }
 
-  if (archive.stdout === null) {
-    throw new Error("git archive produced no stdout stream");
+    throw error;
   }
-
-  archive.stdout.pipe(extract.stdin);
-  await Promise.all([archive, extract]);
-}
-
-/**
- * Fingerprint the current content of `sourceDir` as a git tree hash.
- *
- * Does not require `sourceDir` to be a git checkout. Stages it into a throwaway index backed by the
- * scratch repo at `dir`, so any directory on disk works.
- *
- * @param dir - Scratch repo from {@link initScratchRepo}, used only for its object store and index.
- * @param sourceDir - Directory whose current tree content should be hashed.
- * @returns Git tree hash for `sourceDir`'s current content.
- */
-export async function fingerprintDirectory(dir: string, sourceDir: string): Promise<string> {
-  const env = {
-    GIT_DIR: path.join(dir, ".git"),
-    GIT_WORK_TREE: sourceDir,
-    GIT_INDEX_FILE: path.join(dir, ".git", "gh-gl-fingerprint-index"),
-  };
-
-  await execa("git", ["add", "--all", "."], { cwd: sourceDir, env });
-
-  const { stdout } = await execa("git", ["write-tree"], {
-    cwd: sourceDir,
-    env,
-  });
-
-  return stdout;
 }
