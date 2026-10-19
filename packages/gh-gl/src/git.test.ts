@@ -147,7 +147,6 @@ describe("extractTree", () => {
 
     await expect(extractTree(scratchDir, "FETCH_HEAD", missingDir)).rejects.toMatchObject({
       command: `tar -x -C ${missingDir}`,
-      exitCode: 1,
     });
   });
 

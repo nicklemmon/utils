@@ -1,4 +1,4 @@
-import { execa } from "execa";
+import { execa, ExecaError } from "execa";
 import { z } from "zod";
 
 import type { AskpassEnv } from "./askpass.js";
@@ -290,16 +290,33 @@ export async function abortMergeConflict(dir: string): Promise<void> {
  * Extract the tree at `ref` into `destDir` via `git archive | tar -x`.
  *
  * Preserves file modes and symlinks, unlike a plain filesystem copy. Streams the archive without a
- * size limit. If `tar` fails, its error is thrown and the `git archive` result is in
- * `error.pipedFrom`. If only `git archive` fails, its error is thrown.
+ * size limit. If `git archive` fails, its error is thrown, because it is the root cause. Otherwise
+ * a `tar` failure is thrown and the `git archive` result is in `error.pipedFrom`.
  *
  * @param dir - Scratch repo that contains `ref`.
  * @param ref - Commit-ish such as `FETCH_HEAD` or a branch name.
  * @param destDir - Existing directory that receives the extracted tree.
  */
 export async function extractTree(dir: string, ref: string, destDir: string): Promise<void> {
-  await execa("git", ["-C", dir, "archive", "--end-of-options", ref], { buffer: false }).pipe(
-    "tar",
-    ["-x", "-C", destDir],
-  );
+  try {
+    await execa("git", ["-C", dir, "archive", "--end-of-options", ref], { buffer: false }).pipe(
+      "tar",
+      ["-x", "-C", destDir],
+    );
+  } catch (error) {
+    if (error instanceof ExecaError) {
+      // GNU tar also rejects the empty stream from a failed `git archive`. Report the Git error.
+      for (const result of error.pipedFrom) {
+        if (
+          result instanceof Error &&
+          result instanceof ExecaError &&
+          result.signal === undefined
+        ) {
+          throw result;
+        }
+      }
+    }
+
+    throw error;
+  }
 }
