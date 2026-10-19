@@ -31,7 +31,7 @@ if [ "$blocked" -eq 1 ]; then
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
-      permissionDecisionReason: "Do not write to .changeset/ directly. Run `npm run changesets:add` to create a changeset. If the CLI cannot run in this environment, tell the user and ask how to proceed."
+      permissionDecisionReason: "Do not write to .changeset/ directly. Run `npm run changesets:add -- --patch <package> -m \"<summary>\"` to create a changeset without prompts. Use --minor or --major for other bumps. Pass a comma-separated list for several packages. If the CLI fails, tell the user and ask how to proceed."
     }
   }'
 fi

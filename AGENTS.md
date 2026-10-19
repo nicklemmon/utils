@@ -6,7 +6,7 @@ For a public package, set `attw` to `{ profile: "esm-only", level: "error" }` an
 
 Run `npm run qa` before you push.
 
-Do not write files in `.changeset/` by hand. Run `npm run changesets:add` to create a changeset. A Claude Code hook in `.claude/hooks/` blocks direct writes.
+Do not write files in `.changeset/` by hand. Run `npm run changesets:add -- --patch <package> -m "<summary>"` to create a changeset without prompts. Use `--minor` or `--major` for other bumps. A Claude Code hook in `.claude/hooks/` blocks direct writes.
 
 ## Lint
 
