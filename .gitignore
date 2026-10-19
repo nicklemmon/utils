@@ -11,3 +11,5 @@ coverage/
 *.pem
 *.key
 .claude/
+/reports/stryker/*
+!/reports/stryker/summary.md

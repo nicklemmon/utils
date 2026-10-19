@@ -1,0 +1,92 @@
+name: Mutation testing
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions: {}
+
+concurrency:
+  group: mutation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutation:
+    name: Mutation / ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - gh-gl
+          - anti-slop
+          - dependency-changesets
+          - example
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Run Stryker
+        id: stryker
+        continue-on-error: true
+        run: npm run test:mutation
+        working-directory: packages/${{ matrix.package }}
+      - name: Temporary isHttpsRemote canary
+        id: canary
+        continue-on-error: true
+        if: always() && matrix.package == 'gh-gl'
+        run: >-
+          jq -e
+          '[.files["src/remote-url.ts"].mutants[]?
+          | select(.mutatorName == "MethodExpression")
+          | select(.replacement == "url.endsWith(\"https://\")")
+          | select(.status == "Killed")]
+          | length > 0'
+          reports/stryker/ci/gh-gl.json
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        id: upload
+        if: always()
+        with:
+          name: stryker-${{ matrix.package }}
+          path: |
+            reports/stryker/ci/${{ matrix.package }}.html
+            reports/stryker/ci/${{ matrix.package }}.json
+          if-no-files-found: warn
+      - name: Write score summary
+        if: always()
+        env:
+          PACKAGE: ${{ matrix.package }}
+          REPORT_FILE: reports/stryker/ci/${{ matrix.package }}.json
+          REPORT_URL: ${{ steps.upload.outputs.artifact-url }}
+          MUTATION_OUTCOME: ${{ steps.stryker.outcome }}
+          CANARY_OUTCOME: ${{ steps.canary.outcome }}
+        run: |
+          package_name="$(jq -r '.name' "packages/$PACKAGE/package.json")"
+          floor="$(jq -r '.thresholds.break' "packages/$PACKAGE/stryker.config.json")"
+          printf '## Mutation score: %s\n\n' "$package_name" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "$REPORT_FILE" ]; then
+            score="$(jq -r '[.files[].mutants[] | select(.status == "Killed" or .status == "Timeout" or .status == "Survived" or .status == "NoCoverage")] as $valid | ([ $valid[] | select(.status == "Killed" or .status == "Timeout") ] | length) as $detected | ((($detected * 10000 / ($valid | length)) | round) / 100)' "$REPORT_FILE")"
+            result="$(jq -r --argjson floor "$floor" '[.files[].mutants[] | select(.status == "Killed" or .status == "Timeout" or .status == "Survived" or .status == "NoCoverage")] as $valid | ([ $valid[] | select(.status == "Killed" or .status == "Timeout") ] | length) as $detected | if ($detected * 100 / ($valid | length)) < $floor then "below floor" else "meets floor" end' "$REPORT_FILE")"
+            printf 'Score: **%s%%** · floor: **%s%%** · **%s**\n\n' "$score" "$floor" "$result" >> "$GITHUB_STEP_SUMMARY"
+            if [ -n "$REPORT_URL" ]; then
+              printf '[Download HTML and JSON reports](%s)\n\n' "$REPORT_URL" >> "$GITHUB_STEP_SUMMARY"
+            else
+              printf 'HTML and JSON reports are attached to this workflow run.\n\n' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          else
+            printf 'No Stryker report was produced. See workflow logs.\n\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          printf 'Stryker step: **%s**.\n' "$MUTATION_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$PACKAGE" = "gh-gl" ]; then
+            printf 'Temporary canary: **%s**.\n' "$CANARY_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          printf '\nMutation results are informational during rollout.\n' >> "$GITHUB_STEP_SUMMARY"

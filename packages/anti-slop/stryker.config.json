@@ -1,0 +1,21 @@
+{
+  "$schema": "../../node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "mutate": ["index.ts", "rules/**/*.ts", "shared/**/*.ts", "!rules/**/*.test.ts"],
+  "reporters": ["progress", "html", "json"],
+  "htmlReporter": {
+    "fileName": "../../reports/stryker/ci/anti-slop.html"
+  },
+  "jsonReporter": {
+    "fileName": "../../reports/stryker/ci/anti-slop.json"
+  },
+  "tempDirName": "../../reports/stryker/tmp/anti-slop",
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": 53.43
+  }
+}
