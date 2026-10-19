@@ -52,11 +52,21 @@ jobs:
           | select(.status == "Killed")]
           | length > 0'
           reports/stryker/ci/gh-gl.json
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        id: upload
+        if: always()
+        with:
+          name: stryker-${{ matrix.package }}
+          path: |
+            reports/stryker/ci/${{ matrix.package }}.html
+            reports/stryker/ci/${{ matrix.package }}.json
+          if-no-files-found: warn
       - name: Write score summary
         if: always()
         env:
           PACKAGE: ${{ matrix.package }}
           REPORT_FILE: reports/stryker/ci/${{ matrix.package }}.json
+          REPORT_URL: ${{ steps.upload.outputs.artifact-url }}
           MUTATION_OUTCOME: ${{ steps.stryker.outcome }}
           CANARY_OUTCOME: ${{ steps.canary.outcome }}
         run: |
@@ -67,20 +77,16 @@ jobs:
             score="$(jq -r '[.files[].mutants[] | select(.status == "Killed" or .status == "Timeout" or .status == "Survived" or .status == "NoCoverage")] as $valid | ([ $valid[] | select(.status == "Killed" or .status == "Timeout") ] | length) as $detected | ((($detected * 10000 / ($valid | length)) | round) / 100)' "$REPORT_FILE")"
             result="$(jq -r --argjson floor "$floor" '[.files[].mutants[] | select(.status == "Killed" or .status == "Timeout" or .status == "Survived" or .status == "NoCoverage")] as $valid | ([ $valid[] | select(.status == "Killed" or .status == "Timeout") ] | length) as $detected | if ($detected * 100 / ($valid | length)) < $floor then "below floor" else "meets floor" end' "$REPORT_FILE")"
             printf 'Score: **%s%%** · floor: **%s%%** · **%s**\n\n' "$score" "$floor" "$result" >> "$GITHUB_STEP_SUMMARY"
-            printf 'HTML and JSON reports are attached to this workflow run.\n' >> "$GITHUB_STEP_SUMMARY"
+            if [ -n "$REPORT_URL" ]; then
+              printf '[Download HTML and JSON reports](%s)\n\n' "$REPORT_URL" >> "$GITHUB_STEP_SUMMARY"
+            else
+              printf 'HTML and JSON reports are attached to this workflow run.\n\n' >> "$GITHUB_STEP_SUMMARY"
+            fi
           else
-            printf 'No Stryker report was produced. See workflow logs.\n' >> "$GITHUB_STEP_SUMMARY"
+            printf 'No Stryker report was produced. See workflow logs.\n\n' >> "$GITHUB_STEP_SUMMARY"
           fi
           printf 'Stryker step: **%s**.\n' "$MUTATION_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
           if [ "$PACKAGE" = "gh-gl" ]; then
             printf 'Temporary canary: **%s**.\n' "$CANARY_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
           fi
           printf '\nMutation results are informational during rollout.\n' >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        if: always()
-        with:
-          name: stryker-${{ matrix.package }}
-          path: |
-            reports/stryker/ci/${{ matrix.package }}.html
-            reports/stryker/ci/${{ matrix.package }}.json
-          if-no-files-found: warn
