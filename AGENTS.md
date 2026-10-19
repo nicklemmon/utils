@@ -6,6 +6,8 @@ For a public package, set `attw` to `{ profile: "esm-only", level: "error" }` an
 
 Run `npm run qa` before you push.
 
+Do not write files in `.changeset/` by hand. Run `npm run changesets:add` to create a changeset. A Claude Code hook in `.claude/hooks/` blocks direct writes.
+
 ## Lint
 
 - Parse untrusted input with Zod at the I/O boundary. Do not use `typeof` to narrow unparsed values.

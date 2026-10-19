@@ -10,4 +10,6 @@ coverage/
 !.env.schema
 *.pem
 *.key
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
