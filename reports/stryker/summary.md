@@ -19,7 +19,7 @@ The four runs took about six minutes when run one after another with four worker
 
 ## Compatibility checks
 
-The project uses Vitest 5.0.3. Stryker 10.0.0's Vitest runner builds per-test filters with a space between nested suite names. Vitest 5 expects `>`. Without that fix, a focused run reported 0% and all 17 `remote-url.ts` mutants survived. Applying the same separator fix from [Stryker PR #6214](https://github.com/stryker-mutator/stryker-js/pull/6214) made the focused score 88.24% (15 of 17 mutants killed). The PR remains open. The CI draft applies this fix with a checked postinstall script and checks a known `isHttpsRemote` mutation. Remove the patch and temporary canary after a released runner includes the fix.
+The project uses Vitest 5.0.3. Stryker 10.0.0's Vitest runner builds per-test filters with a space between nested suite names. Vitest 5 expects `>`. Without that fix, a focused run reported 0% and all 17 `remote-url.ts` mutants survived. Applying the same separator fix from [Stryker PR #6214](https://github.com/stryker-mutator/stryker-js/pull/6214) made the focused score 88.24% (15 of 17 mutants killed). The PR remains open. Each `test:mutation` command applies this fix before Stryker runs. This explicit step is needed because `.npmrc` disables install scripts. The workflow also checks a known `isHttpsRemote` mutation. Remove the patch and temporary canary after a released runner includes the fix.
 
 Stryker's TypeScript config preprocessor calls an API removed from TypeScript 7. A scoped TypeScript 6 dependency under Stryker did not provide a reliable package-managed setup, so the CI draft uses TypeScript 6.0.3 at the workspace root. This follows the approved fallback.
 

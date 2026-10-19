@@ -26,7 +26,7 @@
     "check-types": "tsc --noEmit --project tsconfig.json",
     "dev": "tsdown --watch",
     "test": "vitest run",
-    "test:mutation": "stryker run",
+    "test:mutation": "node ../../scripts/apply-stryker-vitest-runner-patch.mjs && stryker run",
     "test:watch": "vitest"
   },
   "dependencies": {

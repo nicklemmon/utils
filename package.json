@@ -28,7 +28,6 @@
     "format:fix": "oxfmt .",
     "check": "turbo run lint format",
     "qa": "turbo run build check-types test lint format --continue && npm run audit",
-    "postinstall": "node scripts/apply-stryker-vitest-runner-patch.mjs",
     "audit": "npm audit --audit-level=high",
     "changesets:add": "changeset",
     "changesets:version": "changeset version",
