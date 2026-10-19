@@ -36,6 +36,7 @@ function isLexicalScope(current: ESTree.Node, node: ESTree.Node): boolean {
     current.type === "BlockStatement" ||
     current.type === "StaticBlock" ||
     current.type === "TSModuleBlock" ||
+    current.type === "ClassExpression" ||
     (current.type === "SwitchStatement" && !isSwitchDiscriminant(node, current))
   );
 }
@@ -87,7 +88,7 @@ function declaredTypeName(node: ESTree.Node): string | null {
   if (node.type === "TSInterfaceDeclaration") return node.id.name;
   if (node.type === "TSEnumDeclaration") return node.id.name;
   if (node.type === "TSImportEqualsDeclaration") return node.id.name;
-  if (node.type !== "ClassDeclaration") return null;
+  if (node.type !== "ClassDeclaration" && node.type !== "ClassExpression") return null;
   return node.id?.name ?? null;
 }
 

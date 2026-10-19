@@ -8,6 +8,7 @@ const error = { messageId: "unknownReturn" };
 tester.run("anti-slop/no-unknown-returns", noUnknownReturnsRule, {
   valid: [
     "type Value = string; switch (((): Value => input)()) { case '': type Value = unknown; break; }",
+    "type Local = unknown; const C = class Local { method(): Local { return this; } };",
     "type ImportedValue = unknown;",
     "function parse(): ImportedValue { return input; }",
     "function parse(): User { return user; }",

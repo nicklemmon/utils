@@ -58,6 +58,10 @@ tester.run("anti-slop/no-unknown-type-aliases", noUnknownTypeAliasesRule, {
       errors: [{ messageId: "unknownAlias", line: 1, column: 5 }],
     },
     {
+      code: "type Local = unknown; const C = class Local { method() { type Alias = Local; } };",
+      errors: [{ messageId: "unknownAlias", line: 1, column: 5 }],
+    },
+    {
       code: "type Value = string; class C { static { type Value = unknown; } } type Exposed = Value;",
       errors: [{ messageId: "unknownAlias", line: 1, column: 45 }],
     },

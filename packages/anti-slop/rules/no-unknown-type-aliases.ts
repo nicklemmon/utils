@@ -45,6 +45,10 @@ export const noUnknownTypeAliasesRule = defineRule({
       ClassDeclaration(node) {
         if (node.id !== null) shadowingDeclarations.push(node);
       },
+      /** Collect named class expressions that can shadow type aliases in their bodies. */
+      ClassExpression(node) {
+        if (node.id !== null) shadowingDeclarations.push(node);
+      },
       /** Collect imports that can shadow type aliases. */
       ImportDeclaration(node) {
         shadowingDeclarations.push(node);
