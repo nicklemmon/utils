@@ -1,0 +1,75 @@
+name: Mutation testing
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions: {}
+
+concurrency:
+  group: mutation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mutation:
+    name: Mutation / ${{ matrix.package }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - gh-gl
+          - anti-slop
+          - dependency-changesets
+          - example
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Run Stryker
+        run: npm run test:mutation
+        working-directory: packages/${{ matrix.package }}
+      - name: Temporary isHttpsRemote canary
+        if: always() && matrix.package == 'gh-gl'
+        run: >-
+          jq -e
+          '[.files["src/remote-url.ts"].mutants[]?
+          | select(.mutatorName == "MethodExpression")
+          | select(.replacement == "url.endsWith(\"https://\")")
+          | select(.status == "Killed")]
+          | length > 0'
+          reports/stryker/ci/gh-gl.json
+      - name: Write score summary
+        if: always()
+        env:
+          PACKAGE: ${{ matrix.package }}
+          REPORT_FILE: reports/stryker/ci/${{ matrix.package }}.json
+        run: |
+          package_name="$(jq -r '.name' "packages/$PACKAGE/package.json")"
+          floor="$(jq -r '.thresholds.break' "packages/$PACKAGE/stryker.config.json")"
+          printf '## Mutation score: %s\n\n' "$package_name" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f "$REPORT_FILE" ]; then
+            score="$(jq -r '[.files[].mutants[] | select(.status == "Killed" or .status == "Timeout" or .status == "Survived" or .status == "NoCoverage")] as $valid | ([ $valid[] | select(.status == "Killed" or .status == "Timeout") ] | length) as $detected | ((($detected * 10000 / ($valid | length)) | round) / 100)' "$REPORT_FILE")"
+            printf 'Score: **%s%%** · floor: **%s%%**\n\n' "$score" "$floor" >> "$GITHUB_STEP_SUMMARY"
+            printf 'HTML and JSON reports are attached to this workflow run.\n' >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf 'No Stryker report was produced. See workflow logs.\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        if: always()
+        with:
+          name: stryker-${{ matrix.package }}
+          path: |
+            reports/stryker/ci/${{ matrix.package }}.html
+            reports/stryker/ci/${{ matrix.package }}.json
+          if-no-files-found: warn

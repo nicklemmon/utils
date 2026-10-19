@@ -12,6 +12,7 @@
   "scripts": {
     "check-types": "tsc --noEmit --project tsconfig.json",
     "test": "vitest run",
+    "test:mutation": "stryker run",
     "test:watch": "vitest"
   },
   "dependencies": {

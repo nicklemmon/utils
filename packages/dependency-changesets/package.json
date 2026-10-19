@@ -8,6 +8,7 @@
   "scripts": {
     "check-types": "tsc --noEmit --project tsconfig.json",
     "test": "vitest run",
+    "test:mutation": "stryker run",
     "generate": "node src/cli.ts"
   },
   "dependencies": {
