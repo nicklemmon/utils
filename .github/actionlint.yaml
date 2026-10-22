@@ -1,0 +1,6 @@
+# actionlint v1.7.x does not know concurrency.queue yet (GitHub Actions does).
+# Remove this ignore when actionlint ships queue support.
+paths:
+  .github/workflows/release.yml:
+    ignore:
+      - 'unexpected key "queue" for "concurrency"'
