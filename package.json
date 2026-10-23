@@ -39,12 +39,12 @@
     "@repo/anti-slop": "*",
     "oxfmt": "^0.72.0",
     "oxlint": "^1.87.0",
-    "oxlint-tsgolint": "^7.0.2003",
+    "oxlint-tsgolint": "^7.0.2004",
     "publint": "^0.3.25",
-    "tsdown": "^0.23.0",
-    "turbo": "^2.11.7",
+    "tsdown": "^0.23.1",
+    "turbo": "^2.11.8",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.5"
   },
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
