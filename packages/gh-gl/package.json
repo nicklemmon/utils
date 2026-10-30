@@ -36,8 +36,8 @@
   },
   "dependencies": {
     "commander": "^15.0.0",
-    "execa": "^10.1.0",
-    "varlock": "^1.22.0",
+    "execa": "^10.2.0",
+    "varlock": "^1.23.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
