@@ -2,16 +2,8 @@ import type { ESTree } from "@oxlint/plugins";
 
 import { defineRule } from "@oxlint/plugins";
 
-/** Return the name of a simple referenced type alias. */
-function referencedAliasName(type: ESTree.TSType): string | null {
-  if (type.type === "TSParenthesizedType") return referencedAliasName(type.typeAnnotation);
-  if (type.type !== "TSTypeReference" || type.typeName.type !== "Identifier") return null;
-  return type.typeArguments === null ||
-    type.typeArguments === undefined ||
-    type.typeArguments.params.length === 0
-    ? type.typeName.name
-    : null;
-}
+import { lexicalTypeParameterScopes } from "../shared/lexical-type-parameters.ts";
+import { createTypeAliasResolver } from "../shared/type-alias-resolver.ts";
 
 /** Ban named aliases that merely conceal TypeScript's unknown top type. */
 export const noUnknownTypeAliasesRule = defineRule({
@@ -26,42 +18,61 @@ export const noUnknownTypeAliasesRule = defineRule({
         "Type alias `{{alias}}` hides `unknown`. Keep `unknown` explicit at the parsing boundary or on an allowed `cause` field; otherwise use the parsed owner type.",
     },
   },
-  /** Register a visitor that checks type aliases. */
+  /** Create visitors that detect aliases resolving to `unknown`. */
   createOnce(context) {
-    const aliases = new Map<string, ESTree.TSTypeAliasDeclaration>();
-
-    /** Return whether a type alias resolves to `unknown`. */
-    const resolvesToUnknown = (type: ESTree.TSType, visited = new Set<string>()): boolean => {
-      if (type.type === "TSUnknownKeyword") return true;
-      if (type.type === "TSParenthesizedType")
-        return resolvesToUnknown(type.typeAnnotation, visited);
-      const name = referencedAliasName(type);
-      if (name === null || visited.has(name)) return false;
-      const alias = aliases.get(name);
-      if (
-        alias === undefined ||
-        (alias.typeParameters !== null && alias.typeParameters !== undefined)
-      ) {
-        return false;
-      }
-      const nextVisited = new Set(visited);
-      nextVisited.add(name);
-      return resolvesToUnknown(alias.typeAnnotation, nextVisited);
-    };
+    const aliases: ESTree.TSTypeAliasDeclaration[] = [];
+    const shadowingDeclarations: ESTree.Node[] = [];
 
     return {
-      /** Save the file's type environment for alias resolution. */
-      Program(node) {
-        aliases.clear();
-        for (const statement of node.body) {
-          const declaration =
-            statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
-          if (declaration?.type === "TSTypeAliasDeclaration") {
-            aliases.set(declaration.id.name, declaration);
+      /** Reset collected declarations before scanning the file. */
+      Program() {
+        aliases.length = 0;
+        shadowingDeclarations.length = 0;
+      },
+      /** Collect aliases that may resolve to `unknown`. */
+      TSTypeAliasDeclaration(node) {
+        aliases.push(node);
+      },
+      /** Collect interfaces that can shadow type aliases. */
+      TSInterfaceDeclaration(node) {
+        shadowingDeclarations.push(node);
+      },
+      /** Collect enums that can shadow type aliases. */
+      TSEnumDeclaration(node) {
+        shadowingDeclarations.push(node);
+      },
+      /** Collect classes that can shadow type aliases. */
+      ClassDeclaration(node) {
+        if (node.id !== null) shadowingDeclarations.push(node);
+      },
+      /** Collect named class expressions that can shadow type aliases in their bodies. */
+      ClassExpression(node) {
+        if (node.id !== null) shadowingDeclarations.push(node);
+      },
+      /** Collect imports that can shadow type aliases. */
+      ImportDeclaration(node) {
+        shadowingDeclarations.push(node);
+      },
+      /** Collect import aliases that can shadow type aliases. */
+      TSImportEqualsDeclaration(node) {
+        shadowingDeclarations.push(node);
+      },
+      /** Resolve collected aliases after reading all declarations. */
+      "Program:exit"() {
+        const resolver = createTypeAliasResolver(aliases, shadowingDeclarations);
+        for (const alias of aliases) {
+          if (
+            !resolver.resolvesToUnknown(alias.typeAnnotation, {
+              includeUnions: false,
+              includePromises: false,
+              /** Find type parameters that shadow aliases at this reference. */
+              typeParameterScopes(type) {
+                return lexicalTypeParameterScopes(type, context.sourceCode.visitorKeys);
+              },
+            })
+          ) {
+            continue;
           }
-        }
-        for (const alias of aliases.values()) {
-          if (!resolvesToUnknown(alias.typeAnnotation, new Set([alias.id.name]))) continue;
           context.report({
             node: alias.id,
             messageId: "unknownAlias",

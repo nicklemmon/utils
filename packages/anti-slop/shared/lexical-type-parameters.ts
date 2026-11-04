@@ -63,26 +63,45 @@ export function lexicalTypeParameterNames(
   node: ESTree.Node,
   visitorKeys: VisitorKeys,
 ): ReadonlySet<string> {
-  const names = new Set<string>();
+  return new Set(lexicalTypeParameterScopes(node, visitorKeys).keys());
+}
+
+/**
+ * Find the nearest declaration node for each type binder that is in scope at a node.
+ *
+ * @param node - AST node whose enclosing type parameters should be collected.
+ * @param visitorKeys - Visitor keys used to walk infer type parameter nodes.
+ * @returns The nearest binder node for each bound name.
+ */
+export function lexicalTypeParameterScopes(
+  node: ESTree.Node,
+  visitorKeys: VisitorKeys,
+): ReadonlyMap<string, ESTree.Node> {
+  const scopes = new Map<string, ESTree.Node>();
   let descendant: ESTree.Node = node;
   let current: ESTree.Node | null = node;
   while (current !== null && current.type !== "Program") {
     if ("typeParameters" in current) {
       for (const parameter of current.typeParameters?.params ?? []) {
-        names.add(parameter.name.name);
+        if (!scopes.has(parameter.name.name)) scopes.set(parameter.name.name, current);
       }
     }
     if (
       current.type === "TSMappedType" &&
-      (descendant === current.nameType || descendant === current.typeAnnotation)
+      (descendant === current.nameType || descendant === current.typeAnnotation) &&
+      !scopes.has(current.key.name)
     ) {
-      names.add(current.key.name);
+      scopes.set(current.key.name, current);
     }
     if (current.type === "TSConditionalType" && descendant === current.trueType) {
-      collectInferTypeParameterNames(current.extendsType, visitorKeys, names);
+      const inferNames = new Set<string>();
+      collectInferTypeParameterNames(current.extendsType, visitorKeys, inferNames);
+      for (const name of inferNames) {
+        if (!scopes.has(name)) scopes.set(name, current);
+      }
     }
     descendant = current;
     current = current.parent;
   }
-  return names;
+  return scopes;
 }

@@ -1,5 +1,5 @@
 import { execa } from "execa";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -11,7 +11,6 @@ import {
   detectDefaultBranch,
   extractTree,
   fetchRef,
-  fingerprintDirectory,
   initScratchRepo,
   abortMergeConflict,
   checkoutBranch,
@@ -127,59 +126,56 @@ describe("extractTree", () => {
     expect(readFileSync(path.join(destDir, "README.md"), "utf8")).toBe("hello");
     expect(readFileSync(path.join(destDir, "src/index.ts"), "utf8")).toBe("export {};");
   });
-});
 
-describe("fingerprintDirectory", () => {
-  const cleanups: Array<() => void> = [];
-
-  afterEach(() => {
-    for (const cleanup of cleanups.splice(0)) {
-      cleanup();
-    }
-  });
-
-  it("returns the same fingerprint for the same content", async () => {
+  /** Create a scratch repo that has fetched `files` from a fixture repo as `FETCH_HEAD`. */
+  async function fetchedScratch(files: Readonly<Record<string, string>>): Promise<string> {
+    const repo = await createFixtureRepo();
+    cleanups.push(repo.cleanup);
+    await repo.commit("Initial commit", files);
     const scratchDir = mkdtempSync(path.join(tmpdir(), "gh-gl-scratch-"));
-    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
-
     cleanups.push(() => {
       rmSync(scratchDir, { recursive: true, force: true });
-      rmSync(overlayDir, { recursive: true, force: true });
     });
     await initScratchRepo(scratchDir);
+    await fetchRef(scratchDir, repo.dir, "main");
+    return scratchDir;
+  }
 
-    const { writeFileSync } = await import("node:fs");
+  it("throws the tar error when extraction fails", async () => {
+    const scratchDir = await fetchedScratch({ "README.md": "hello" });
+    const missingDir = path.join(scratchDir, "missing");
 
-    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
-
-    const first = await fingerprintDirectory(scratchDir, overlayDir);
-    const second = await fingerprintDirectory(scratchDir, overlayDir);
-
-    expect(first).toBe(second);
+    await expect(extractTree(scratchDir, "FETCH_HEAD", missingDir)).rejects.toMatchObject({
+      command: `tar -x -C ${missingDir}`,
+    });
   });
 
-  it("returns a different fingerprint when content changes", async () => {
-    const scratchDir = mkdtempSync(path.join(tmpdir(), "gh-gl-scratch-"));
-    const overlayDir = mkdtempSync(path.join(tmpdir(), "gh-gl-overlay-"));
+  it("throws the git archive error when the ref does not exist", async () => {
+    const scratchDir = await fetchedScratch({ "README.md": "hello" });
 
+    await expect(extractTree(scratchDir, "no-such-ref", scratchDir)).rejects.toMatchObject({
+      command: expect.stringContaining(" archive --end-of-options no-such-ref"),
+      exitCode: 128,
+    });
+  });
+
+  it("extracts an archive larger than the default 100 MB output buffer", async () => {
+    const scratchDir = await fetchedScratch({ "small.txt": "small" });
+    const largePath = path.join(scratchDir, "large.bin");
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(largePath, Buffer.alloc(105_000_000, 0x5a));
+    await execa("git", ["-C", scratchDir, "add", "large.bin"]);
+    await execa("git", ["-C", scratchDir, "commit", "-m", "Large file"]);
+    rmSync(largePath);
+    const destDir = mkdtempSync(path.join(tmpdir(), "gh-gl-dest-"));
     cleanups.push(() => {
-      rmSync(scratchDir, { recursive: true, force: true });
-      rmSync(overlayDir, { recursive: true, force: true });
+      rmSync(destDir, { recursive: true, force: true });
     });
-    await initScratchRepo(scratchDir);
 
-    const { writeFileSync } = await import("node:fs");
+    await extractTree(scratchDir, "HEAD", destDir);
 
-    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: []\n");
-
-    const before = await fingerprintDirectory(scratchDir, overlayDir);
-
-    writeFileSync(path.join(overlayDir, ".gitlab-ci.yml"), "stages: [build]\n");
-
-    const after = await fingerprintDirectory(scratchDir, overlayDir);
-
-    expect(before).not.toBe(after);
-  });
+    expect(statSync(path.join(destDir, "large.bin")).size).toBe(105_000_000);
+  }, 30_000);
 });
 
 describe("resolveRef", () => {

@@ -1,28 +1,23 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-
 import type { AskpassEnv } from "./askpass.js";
 import type { SyncOutcome } from "./output.js";
+import type { SyncAskpass } from "./resources.js";
 
-import { createAskpass } from "./askpass.js";
 import {
   abortMergeConflict,
   checkoutBranch,
-  commitAll,
+  commitStagedChanges,
   commitEmpty,
   detectDefaultBranch,
   extractTree,
   fetchRef,
-  fingerprintDirectory,
-  initScratchRepo,
   mergeRef,
   pushBranch,
   readCommitMessage,
   resolveRef,
   setSymbolicHead,
 } from "./git.js";
-import { copyOverlayOnto } from "./overlay.js";
+import { applyCapturedOverlay, captureOverlay } from "./overlay.js";
+import { withScratchRepo, withSyncAskpass } from "./resources.js";
 import { formatSyncTrailers, parseSyncTrailers } from "./trailers.js";
 
 /** Inputs for a single `gh-gl sync` run. */
@@ -35,34 +30,6 @@ export type SyncOptions = {
   githubToken?: string | undefined;
   gitlabToken?: string | undefined;
 };
-
-/**
- * The live `GIT_ASKPASS` env for each remote in a sync run, created once per token per run (not
- * once per git call) — see {@link sync}.
- */
-type SyncAskpass = Readonly<{ github: AskpassEnv | undefined; gitlab: AskpassEnv | undefined }>;
-
-/** A scratch repo's directory, and a `cleanup` to remove it once the caller is done with it. */
-type ScratchRepo = Readonly<{ dir: string; cleanup: () => void }>;
-
-/**
- * Create a fresh scratch repo for one sync run to use as its working directory.
- *
- * @returns Scratch repo directory plus a `cleanup` that deletes it.
- */
-async function createScratchRepo(): Promise<ScratchRepo> {
-  const dir = mkdtempSync(path.join(tmpdir(), "gh-gl-scratch-"));
-
-  await initScratchRepo(dir);
-
-  return {
-    dir,
-    /** Remove the scratch repository. */
-    cleanup: () => {
-      rmSync(dir, { recursive: true, force: true });
-    },
-  };
-}
 
 /**
  * Bootstrap an empty GitLab repo's default branch by pushing an empty commit named after GitHub's.
@@ -81,9 +48,7 @@ async function bootstrapGitlabDefaultBranch(
   githubDefaultBranch: string,
   gitlabAskpassEnv: AskpassEnv | undefined,
 ): Promise<string> {
-  const scratch = await createScratchRepo();
-
-  try {
+  const outcome = await withScratchRepo(async (scratch): Promise<string> => {
     await setSymbolicHead(scratch.dir, `refs/heads/${githubDefaultBranch}`);
     await commitEmpty(scratch.dir, "Bootstrap commit created by gh-gl");
 
@@ -110,9 +75,8 @@ async function bootstrapGitlabDefaultBranch(
     }
 
     return redetected;
-  } finally {
-    scratch.cleanup();
-  }
+  });
+  return outcome;
 }
 
 /** Preview the first rebuild when GitLab has no default branch yet. */
@@ -121,42 +85,37 @@ async function previewInitialRebuild(
   githubDefaultBranch: string,
   askpass: SyncAskpass,
 ): Promise<SyncOutcome> {
-  const scratch = await createScratchRepo();
-
-  try {
+  const outcome = await withScratchRepo(async (scratch): Promise<SyncOutcome> => {
     await fetchRef(scratch.dir, options.githubUrl, githubDefaultBranch, {
       shallow: true,
       askpassEnv: askpass.github,
     });
 
     const githubSha = await resolveRef(scratch.dir, "FETCH_HEAD");
-    const overlayFingerprint = await fingerprintDirectory(scratch.dir, options.overlayDir);
+    const overlay = await captureOverlay(scratch.dir, options.overlayDir);
 
     return {
       kind: "rebuilt",
       branch: githubDefaultBranch,
       githubSha,
-      overlayFingerprint,
+      overlayFingerprint: overlay.fingerprint,
       dryRun: true,
     };
-  } finally {
-    scratch.cleanup();
-  }
+  });
+  return outcome;
 }
 
 type RebuildAttempt = SyncOutcome | { kind: "push-rejected" };
 
-/** Rebuild the target branch once and report whether its push was rejected. */
+/** Try one rebuild and report if the push was rejected. */
 async function attemptRebuild(
   options: Readonly<SyncOptions>,
   branch: string,
   githubDefaultBranch: string,
   askpass: SyncAskpass,
 ): Promise<RebuildAttempt> {
-  const scratch = await createScratchRepo();
-  const scratchDir = scratch.dir;
-
-  try {
+  const outcome = await withScratchRepo(async (scratch): Promise<RebuildAttempt> => {
+    const scratchDir = scratch.dir;
     await fetchRef(scratchDir, options.gitlabUrl, branch, {
       localRef: `refs/heads/${branch}`,
       askpassEnv: askpass.gitlab,
@@ -171,14 +130,14 @@ async function attemptRebuild(
     });
 
     const githubSha = await resolveRef(scratchDir, "FETCH_HEAD");
-    const overlayFingerprint = await fingerprintDirectory(scratchDir, options.overlayDir);
+    const overlay = await captureOverlay(scratchDir, options.overlayDir);
 
     if (
       previousTrailers !== undefined &&
       previousTrailers.githubSha === githubSha &&
-      previousTrailers.overlayFingerprint === overlayFingerprint
+      previousTrailers.overlayFingerprint === overlay.fingerprint
     ) {
-      return { kind: "no-op", branch, githubSha, overlayFingerprint };
+      return { kind: "no-op", branch, githubSha, overlayFingerprint: overlay.fingerprint };
     }
 
     if (options.dryRun) {
@@ -186,18 +145,18 @@ async function attemptRebuild(
         kind: "rebuilt",
         branch,
         githubSha,
-        overlayFingerprint,
+        overlayFingerprint: overlay.fingerprint,
         dryRun: true,
       };
     }
 
     await setSymbolicHead(scratchDir, `refs/heads/${branch}`);
     await extractTree(scratchDir, "FETCH_HEAD", scratchDir);
-    await copyOverlayOnto(options.overlayDir, scratchDir);
+    await applyCapturedOverlay(scratchDir, overlay, githubSha);
 
-    const trailers = formatSyncTrailers({ githubSha, overlayFingerprint });
+    const trailers = formatSyncTrailers({ githubSha, overlayFingerprint: overlay.fingerprint });
 
-    await commitAll(scratchDir, `Sync GitHub into GitLab\n\n${trailers}`);
+    await commitStagedChanges(scratchDir, `Sync GitHub into GitLab\n\n${trailers}`);
 
     const pushed = await pushBranch(scratchDir, options.gitlabUrl, branch, askpass.gitlab);
 
@@ -209,12 +168,11 @@ async function attemptRebuild(
       kind: "rebuilt",
       branch,
       githubSha,
-      overlayFingerprint,
+      overlayFingerprint: overlay.fingerprint,
       dryRun: false,
     };
-  } finally {
-    scratch.cleanup();
-  }
+  });
+  return outcome;
 }
 
 /**
@@ -267,7 +225,7 @@ type MergeTarget = Readonly<{
  * race could report a different result than the one already computed. A rejected push here is
  * always a real error for a human to resolve.
  *
- * @param scratchDir - Scratch repo from {@link initScratchRepo}.
+ * @param scratchDir - Scratch repo owned by the current operation.
  * @param options - Sync inputs for this run.
  * @param target - Prototype branch, GitLab default branch to merge in, and GitLab askpass env.
  * @returns Sync outcome for this merge (`merged`, `conflict`, or a thrown error on push rejection).
@@ -317,6 +275,40 @@ async function runMerge(
   return { kind: "merged", branch, dryRun: false };
 }
 
+type DefaultBranchLookup = (
+  remoteUrl: string,
+  askpassEnv: AskpassEnv | undefined,
+) => Promise<string | undefined>;
+
+/**
+ * Detect both remote branches before sync uses either result.
+ *
+ * Waiting for both lookups keeps both credential helpers alive if one lookup fails while the other
+ * still needs its helper.
+ *
+ * @param githubUrl - GitHub remote URL.
+ * @param gitlabUrl - GitLab remote URL.
+ * @param askpass - Live credential environments for both remotes.
+ * @param lookup - Branch lookup operation. The default uses Git's remote HEAD lookup.
+ * @returns The GitHub and GitLab default branch names.
+ */
+export async function detectRemoteDefaultBranches(
+  githubUrl: string,
+  gitlabUrl: string,
+  askpass: SyncAskpass,
+  lookup: DefaultBranchLookup = detectDefaultBranch,
+): Promise<Readonly<{ github: string | undefined; gitlab: string | undefined }>> {
+  const [githubBranch, gitlabBranch] = await Promise.allSettled([
+    lookup(githubUrl, askpass.github),
+    lookup(gitlabUrl, askpass.gitlab),
+  ]);
+
+  if (githubBranch.status === "rejected") throw githubBranch.reason;
+  if (gitlabBranch.status === "rejected") throw gitlabBranch.reason;
+
+  return { github: githubBranch.value, gitlab: gitlabBranch.value };
+}
+
 /**
  * Run one `gh-gl sync`.
  *
@@ -327,20 +319,9 @@ async function runMerge(
  * @returns Sync outcome describing no-op, rebuild, merge, or conflict.
  */
 export async function sync(options: Readonly<SyncOptions>): Promise<SyncOutcome> {
-  const githubAskpass =
-    options.githubToken === undefined ? undefined : createAskpass(options.githubToken);
-  const gitlabAskpass =
-    options.gitlabToken === undefined ? undefined : createAskpass(options.gitlabToken);
-  const askpass: SyncAskpass = {
-    github: githubAskpass === undefined ? undefined : githubAskpass.env,
-    gitlab: gitlabAskpass === undefined ? undefined : gitlabAskpass.env,
-  };
-
-  try {
-    const [githubDefaultBranch, gitlabDefaultBranch] = await Promise.all([
-      detectDefaultBranch(options.githubUrl, askpass.github),
-      detectDefaultBranch(options.gitlabUrl, askpass.gitlab),
-    ]);
+  const outcome = await withSyncAskpass(options, async (askpass): Promise<SyncOutcome> => {
+    const { github: githubDefaultBranch, gitlab: gitlabDefaultBranch } =
+      await detectRemoteDefaultBranches(options.githubUrl, options.gitlabUrl, askpass);
 
     if (githubDefaultBranch === undefined) {
       throw new Error(
@@ -356,7 +337,7 @@ export async function sync(options: Readonly<SyncOptions>): Promise<SyncOutcome>
       }
 
       if (options.dryRun) {
-        return await previewInitialRebuild(options, githubDefaultBranch, askpass);
+        return previewInitialRebuild(options, githubDefaultBranch, askpass);
       }
     }
 
@@ -367,27 +348,17 @@ export async function sync(options: Readonly<SyncOptions>): Promise<SyncOutcome>
     const branch = options.branch ?? resolvedGitlabDefaultBranch;
 
     if (branch === resolvedGitlabDefaultBranch) {
-      return await runRebuild(options, branch, githubDefaultBranch, askpass);
+      return runRebuild(options, branch, githubDefaultBranch, askpass);
     }
 
-    const scratch = await createScratchRepo();
-
-    try {
-      return await runMerge(scratch.dir, options, {
+    return withScratchRepo(async (scratch): Promise<SyncOutcome> => {
+      const merged = await runMerge(scratch.dir, options, {
         branch,
         gitlabDefaultBranch: resolvedGitlabDefaultBranch,
         gitlabAskpassEnv: askpass.gitlab,
       });
-    } finally {
-      scratch.cleanup();
-    }
-  } finally {
-    if (githubAskpass !== undefined) {
-      githubAskpass.cleanup();
-    }
-
-    if (gitlabAskpass !== undefined) {
-      gitlabAskpass.cleanup();
-    }
-  }
+      return merged;
+    });
+  });
+  return outcome;
 }
