@@ -48,7 +48,9 @@ Preview is the default. Set `CHANGESET_MODE=publish` with Contents write access 
 npm run changesets:add
 ```
 
-After changesets land on `main`, the Release workflow opens a Version Packages PR. Merging that PR bumps versions, updates changelogs, and publishes public packages to npm with Trusted Publishing (OIDC).
+After changesets land on `main`, the Release workflow opens a Version Packages PR. Merging that PR bumps versions and changelogs. A separate publish job then waits for approval in the `npm-publish` GitHub Environment before publishing with Trusted Publishing (OIDC).
+
+If you reject or cancel that approval, re-run the Release workflow when you are ready to publish. Avoid merging other commits to `main` while a publish is waiting.
 
 For a local version bump without publishing:
 
