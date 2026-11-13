@@ -37,14 +37,14 @@
     "@arethetypeswrong/core": "^0.18.5",
     "@changesets/cli": "^3.0.3",
     "@repo/anti-slop": "*",
-    "oxfmt": "^0.74.0",
-    "oxlint": "^1.89.0",
+    "oxfmt": "^0.76.0",
+    "oxlint": "^1.91.0",
     "oxlint-tsgolint": "^7.0.2005",
     "publint": "^0.3.25",
     "tsdown": "^0.23.4",
     "turbo": "^2.11.10",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
