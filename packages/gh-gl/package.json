@@ -35,9 +35,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "commander": "^15.0.0",
-    "execa": "^10.1.0",
-    "varlock": "^1.22.0",
+    "commander": "^15.1.0",
+    "execa": "^10.2.1",
+    "varlock": "^1.25.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
